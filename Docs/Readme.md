@@ -1,1 +1,1 @@
-Data sheets, etc.
+Specifications, data sheets, tutorials, etc.
