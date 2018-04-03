@@ -17,12 +17,12 @@ void setup() {
 
   // Set pin 23 to output, don't think this is actually necessary
   pinMode(PWM_PIN, OUTPUT);
-  analogWriteFrequency(PWM_PIN, 6000);  // (pin, frequency in Hz)
+  analogWriteFrequency(PWM_PIN, 3000);  // (pin, frequency in Hz)
   analogWriteResolution(10);          // (# of bits)
   analogWrite(PWM_PIN, 512);          // (pin, 0 .. 2^(# of bits))
 
-  f1.frequency(6000);
-  f2.frequency(8000);
+  f1.frequency(3000);
+  f2.frequency(3500);
 
 }
 

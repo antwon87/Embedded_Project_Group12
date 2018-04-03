@@ -18,9 +18,9 @@ void setup() {
 
   // Set pin 23 to output, don't think this is actually necessary
   pinMode(PWM_PIN, OUTPUT);
-  analogWriteFrequency(PWM_PIN, 15000);  // (pin, frequency in Hz)
-  analogWriteResolution(10);          // (# of bits)
-  analogWrite(PWM_PIN, 512);          // (pin, 0 .. 2^(# of bits))
+  analogWriteFrequency(PWM_PIN, 50);  // (pin, frequency in Hz)
+  analogWriteResolution(16);          // (# of bits)
+  analogWrite(PWM_PIN, 5210);          // (pin, 0 .. 2^(# of bits))
 }
 
 void loop() {
@@ -33,7 +33,6 @@ void loop() {
   Serial.println(FTM1_CNT & 0xFFFF);
   Serial.print("FTM1_OUTMASK[0] = ");
   Serial.println(FTM1_OUTMASK & 1);
-  Serial.print("FTM1_CH0 = ");
   Serial.println();
   delay(2000);
 
