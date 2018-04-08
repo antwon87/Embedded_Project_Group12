@@ -65,9 +65,9 @@ void goForward() {
   delay(15);
 }
 
-void goBack(int leftSpeed, int rightSpeed) {
-  analogWrite(PWM_LEFT_PIN, leftSpeed);           //3276
-  analogWrite(PWM_RIGHT_PIN, rightSpeed);          //6553
+void goBack() {
+  analogWrite(PWM_LEFT_PIN, 4240);           //3276
+  analogWrite(PWM_RIGHT_PIN, 5570);          //6553
   delay(15);
 }
 
@@ -77,17 +77,18 @@ void stopCart() {
   delay(15);
 }
 
-// TODO: adjust the value
-void turnLeft() {
+// TODO: adjust the value inside analogWrite()
+// larger time, larger turning degree 
+void turnLeft(int time) {
   analogWrite(PWM_LEFT_PIN, 5570);          
-  analogWrite(PWM_RIGHT_PIN, 5570);      
+  analogWrite(PWM_RIGHT_PIN, 5570);  
+  delay(time)    
 }
 
-// TODO: adjust the value
-void turnRight() {
-  analogWrite(PWM_LEFT_PIN, 5210);          
-  analogWrite(PWM_RIGHT_PIN, 5210);  
-  delay(15);
+void turnRight(int time) {
+  analogWrite(PWM_LEFT_PIN, 4240);          
+  analogWrite(PWM_RIGHT_PIN, 4240);  
+  delay(time);
 }
 
 
