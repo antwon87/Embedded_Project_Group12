@@ -20,7 +20,7 @@ void setup() {
   analogWriteFrequency(PWM_PIN, 3000);  // (pin, frequency in Hz)
   analogWriteResolution(10);          // (# of bits)
   analogWrite(PWM_PIN, 512);          // (pin, 0 .. 2^(# of bits))
-
+  
   f1.frequency(3000);
   f2.frequency(3500);
 
