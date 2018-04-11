@@ -55,13 +55,4 @@ void loop() {
 
   delay(500);
 
-  /* These two for loops go through the full range at 16-bit resolution */
-  //  for (int i = 3276; i <= 6554; ++i) {
-  //    analogWrite(PWM_PIN, i);
-  //    delay(15);
-  //  }
-  //  for (int i = 6553; i >= 3276; --i) {
-  //    analogWrite(PWM_PIN, i);
-  //    delay(15);
-  //  }
 }
