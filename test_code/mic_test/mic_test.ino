@@ -2,14 +2,16 @@
 
 #include <Audio.h>
 
-AudioInputAnalog adc1;
+AudioInputAnalog adc1(A0);
 AudioAnalyzeToneDetect f1;
 AudioAnalyzeToneDetect f2;
+AudioAnalyzeToneDetect f3;
 AudioAnalyzePeak peak;
 
 AudioConnection patchCord1(adc1, f1);
 AudioConnection patchCord2(adc1, peak);
 AudioConnection patchCord3(adc1, f2);
+AudioConnection patchCord4(adc1, f3);
 
 void setup() {
   Serial.begin(115200);
@@ -17,12 +19,13 @@ void setup() {
 
   // Set pin 23 to output, don't think this is actually necessary
   pinMode(PWM_PIN, OUTPUT);
-  analogWriteFrequency(PWM_PIN, 3000);  // (pin, frequency in Hz)
-  analogWriteResolution(10);          // (# of bits)
-  analogWrite(PWM_PIN, 512);          // (pin, 0 .. 2^(# of bits))
+  //  analogWriteFrequency(PWM_PIN, 5000);  // (pin, frequency in Hz)
+  //  analogWriteResolution(10);          // (# of bits)
+  //  analogWrite(PWM_PIN, 512);          // (pin, 0 .. 2^(# of bits))
 
-  f1.frequency(3000);
-  f2.frequency(3500);
+  f1.frequency(8000);
+  f2.frequency(5000);
+  f3.frequency(3000);
 
 }
 
@@ -31,12 +34,17 @@ void loop() {
 
   if (f1.available()) {
     Serial.print("f1Val = ");
-    Serial.println(f1.read());
+    Serial.println(f1.read(), 4);
   }
 
   if (f2.available()) {
     Serial.print("f2Val = ");
-    Serial.println(f2.read());
+    Serial.println(f2.read(), 4);
+  }
+
+  if (f3.available()) {
+    Serial.print("f3Val = ");
+    Serial.println(f3.read(), 4);
   }
 
   if (peak.available()) {
@@ -45,15 +53,15 @@ void loop() {
   }
 
 
-  delay(2000);
+  delay(500);
 
   /* These two for loops go through the full range at 16-bit resolution */
-//  for (int i = 3276; i <= 6554; ++i) {
-//    analogWrite(PWM_PIN, i);
-//    delay(15);
-//  }
-//  for (int i = 6553; i >= 3276; --i) {
-//    analogWrite(PWM_PIN, i);
-//    delay(15);
-//  }
+  //  for (int i = 3276; i <= 6554; ++i) {
+  //    analogWrite(PWM_PIN, i);
+  //    delay(15);
+  //  }
+  //  for (int i = 6553; i >= 3276; --i) {
+  //    analogWrite(PWM_PIN, i);
+  //    delay(15);
+  //  }
 }
