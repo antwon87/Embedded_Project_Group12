@@ -1,3 +1,13 @@
+/* This code is a draft of a full control algorithm.
+ *  The code to find the direction of a beacon is all that is 
+ *  implemented so far, but that seems to be working decently.
+ *  There are still a couple bugs: 
+ *    When the vehicle is pointed at the beacon when the search 
+ *      starts, it will never stop searching.
+ *    The search sometimes finishes in the wrong direction, not 
+ *      sure why yet.
+ */
+
 #include <Audio.h>
 
 #define PWM_LEFT_PIN  3
