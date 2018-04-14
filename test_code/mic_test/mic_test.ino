@@ -2,7 +2,7 @@
 
 #include <Audio.h>
 
-AudioInputAnalog adc1(A0);
+AudioInputAnalog adc1;
 AudioAnalyzeToneDetect f1;
 AudioAnalyzeToneDetect f2;
 AudioAnalyzeToneDetect f3;
