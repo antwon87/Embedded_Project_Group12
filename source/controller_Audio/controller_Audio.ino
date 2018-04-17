@@ -1,12 +1,12 @@
 /* This code is a draft of a full control algorithm.
- *  The code to find the direction of a beacon is all that is 
- *  implemented so far, but that seems to be working decently.
- *  There are still a couple bugs: 
- *    When the vehicle is pointed at the beacon when the search 
- *      starts, it will never stop searching.
- *    The search sometimes finishes in the wrong direction, not 
- *      sure why yet.
- */
+    The code to find the direction of a beacon is all that is
+    implemented so far, but that seems to be working decently.
+    There are still a couple bugs:
+      When the vehicle is pointed at the beacon when the search
+        starts, it will never stop searching.
+      The search sometimes finishes in the wrong direction, not
+        sure why yet.
+*/
 
 #include <Audio.h>
 
@@ -37,7 +37,7 @@ bool f3done;
 //bool searching;
 bool magRiseFound;
 volatile StateType state;
-//elapsedMillis targetingTime;
+//elapsedMillis searchTime;
 volatile bool started;
 
 void setup() {
@@ -79,13 +79,27 @@ void loop() {
   float f4Mag = f4.read();
   float tarMag = 0;
 
-  // Take an average of 10 samples for the target frequency
-  for (int i = 0; i < 10; ++i) {  // Will need to be changed to account for buzzers only producing sound 1/4 of the time
+  int samples = 0;
+  float sampleMag = 0;
+  while (samples < 10) {
     while (!target->available());
-    tarMag += target->read();
+    sampleMag = target->read();
+    if (sampleMag > 0.04) {
+      tarMag += sampleMag;
+      samples++;
+      Serial.print("Sample ");
+      Serial.print(samples);
+      Serial.print(" = ");
+      Serial.println(sampleMag, 3);
+    }
   }
+  // Take an average of 10 samples for the target frequency
+  //  for (int i = 0; i < 10; ++i) {  // Will need to be changed to account for buzzers only producing sound 1/4 of the time
+  //    while (!target->available());
+  //    tarMag += target->read();
+  //  }
   tarMag = tarMag / 10;
-
+  Serial.println(f1Mag, 3);
   Serial.println(tarMag, 3);
   Serial.print("state = ");
   Serial.println(state);
@@ -95,6 +109,7 @@ void loop() {
     case IDLING:
       if (started) {
         state = SEARCHING;
+        //        searchTime = 0;
       }
       break;
     case FORWARD:  // Will need to be rewritten to account for buzzers only producing sound 1/4 of the time
@@ -108,6 +123,7 @@ void loop() {
         f2done = true;
         f3done = true;
         state = SEARCHING;
+        //        searchTime = 0;
         //        maxMag = 0;
         //        continue;
       } else if (f3Mag && !f3done) {
@@ -115,23 +131,32 @@ void loop() {
         f1done = true;
         f2done = true;
         state = SEARCHING;
+        //        searchTime = 0;
         //        maxMag = 0;
         //        continue;
       } else if (f2Mag && !f2done) {
         target = &f2;
         state = SEARCHING;
+        //        searchTime = 0;
         //        maxMag = 0;
         //        continue;
         //      f1done = true;
       } else {
         state = FORWARD;
       }
+
+      // Check if car is moving away from beacon
+      if (tarMag > maxMag) {
+        maxMag = tarMag;
+      } else if (tarMag < maxMag * 0.7) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
+        state = SEARCHING;
+      }
       break;
 
     // Will need to modify to account for buzzers only producing sound 1/4 of the time
     case SEARCHING:  // Aim car at target beacon if searching
-      analogWrite(PWM_LEFT_PIN, 4240);  // Turn right
-      analogWrite(PWM_RIGHT_PIN, 4240);
+      analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
+      analogWrite(PWM_RIGHT_PIN, 4390);
       if (tarMag > 0.04) {  // Don't do anything if target magnitude is insignificant, buzzer probably off
         if (tarMag > (maxMag * 1.2)) {  // max * 1.2 is to account for FFT output fluctuation. Needs to be tuned/replaced.
           if (maxMag != 0) {
@@ -140,25 +165,33 @@ void loop() {
           maxMag = tarMag;
           maxTime = micros();
         } else if (magRiseFound && tarMag < (maxMag * 0.8)) {  // Turned past beacon. max * 0.8 is to account for FFT output fluctuation. Needs to be tuned/replaced.
-          turnLeft(micros() - maxTime);
+          turnLeft(micros() - maxTime + 500000);  // 500000 added because it's not turning back far enough. Could also increase speed of left turn.
           maxTime = 0;
           magRiseFound = false;
           maxMag = 0;
-          state = FINISHED;  // Setting to FINISHED for search testing. Will want to set to TARGETING or FORWARD in final design.
-          //        targetingTime = 0;  // Use if state is changing to TARGETING
+          state = FINISHED;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
+        } else if (micros() - maxTime > 7000000) {  // This assumes time to turn a full circle is 5 seconds. Adjust if necessary
+          maxTime = micros();
+          magRiseFound = false;
+          maxMag = tarMag;
+          //          state = FINISHED;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
         }
       }
       break;
 
     case FINISHED:
+      // Stop
+      analogWrite(PWM_LEFT_PIN, 5000);
+      analogWrite(PWM_RIGHT_PIN, 5000);
       // Light an LED
       digitalWrite(LED_PIN, HIGH);
-      while (state == FINISHED);  // Wait forever
+      while (1);  // Wait forever
       break;
 
     default:
       // If somehow not in any state,
       state = SEARCHING;
+      //        searchTime = 0;
       break;
   }
 
@@ -172,8 +205,8 @@ void goForward(int leftSpeed, int rightSpeed) {
 }
 
 void turnLeft(float time) {
-  analogWrite(PWM_LEFT_PIN, 5570);
-  analogWrite(PWM_RIGHT_PIN, 5570);
+  analogWrite(PWM_LEFT_PIN, 5420);
+  analogWrite(PWM_RIGHT_PIN, 5420);
   delayMicroseconds(time);
   analogWrite(PWM_LEFT_PIN, 5000);
   analogWrite(PWM_RIGHT_PIN, 5000);
@@ -189,8 +222,5 @@ void turnLeft(float time) {
 
 void startButtonISR() {
   started = true;
-  if (state == FINISHED) {  // For testing
-    state = IDLING;
-  }
 }
 
