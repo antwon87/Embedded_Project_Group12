@@ -12,6 +12,8 @@
 #define PWM_RIGHT_PIN 5
 #define LED_PIN       13
 #define START_BUT_PIN 7
+#define CALIBRATION_PIN A9
+#define CALIBRATION_SWITCH_PIN 11
 #define F1 1000
 #define F2 2000
 #define F3 3000
@@ -22,6 +24,10 @@
 #define F8 8000
 #define F9 9000
 #define F10 10000
+#define STRAIGHT_SPEED_LEFT 4340
+#define STRAIGHT_BASE_RIGHT 5410
+#define RIGHT_TURN_SPEED 4490
+#define LEFT_TURN_SPEED_BASE 5350
 
 /*
   These values can be changed in order to evaluate the functions
@@ -31,6 +37,7 @@ const uint16_t samples = 128; //This value MUST ALWAYS be a power of 2
 const double samplingFrequency = 22000; //Hz, must be less than 10000 due to ADC
 unsigned int sampling_period_us;
 unsigned long microseconds;
+
 /*
   These are the input and output vectors
   Input vectors receive computed results from FFT
@@ -42,7 +49,7 @@ double avgHistory[AVG_NUMBER] = {0};
 double avgSum = 0;
 int avgPos = 0;
 
-enum StateType {IDLING, SEARCHING, FORWARD, FINISHED};
+enum StateType {IDLING, SEARCHING, FORWARD, FINISHED, CALIBRATION_STRAIGHT, CALIBRATION_TURN};
 
 arduinoFFT FFT = arduinoFFT();
 int target;
@@ -53,23 +60,33 @@ int threshold;
 bool magRiseFound;
 StateType state;
 volatile bool started;
+double lastButtonPress = 0;
 double tarMag;
 
+uint16_t calibrateRead = 0;
+uint16_t rSpeed = STRAIGHT_BASE_RIGHT;
+uint16_t leftTurnSpeed = LEFT_TURN_SPEED_BASE;
 
 void setup() {
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT);
   pinMode(START_BUT_PIN, INPUT_PULLUP);
+  pinMode(CALIBRATION_PIN, INPUT);
+  pinMode(CALIBRATION_SWITCH_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(START_BUT_PIN), startButtonISR, FALLING);
   digitalWrite(LED_PIN, LOW);
   target = F1;
   tarIndex = freqToIndex(target);
-  threshold = 900;  // Set arbitrarily. Will need to be changed based on testing. Setting high to test only 1 beacon.
+  threshold = 1000;  // Set arbitrarily. Will need to be changed based on testing. Setting high to test only 1 beacon.
   //  f1done = false;
   //  f2done = false;
   //  f3done = false;
   //  searching = true;
-  state = IDLING;
+  if (digitalRead(CALIBRATION_SWITCH_PIN) == 0) {
+    state = IDLING;
+  } else {
+    state = CALIBRATION_STRAIGHT;    
+  }
   started = false;
   maxMag = 0;
   maxTime = 0;
@@ -86,6 +103,8 @@ void setup() {
 }
 
 void loop() {
+  Serial.print("state = ");
+  Serial.println(state);
 
   switch (state) {
     case IDLING:
@@ -95,8 +114,8 @@ void loop() {
       //      }
       break;
     case FORWARD:  // Will need to be rewritten to account for buzzers only producing sound 1/4 of the time
-      analogWrite(PWM_LEFT_PIN, 6553);
-      analogWrite(PWM_RIGHT_PIN, 3276);
+      analogWrite(PWM_LEFT_PIN, STRAIGHT_SPEED_LEFT);
+      analogWrite(PWM_RIGHT_PIN, rSpeed);
 
       // Check for new target
       if (vReal[freqToIndex(F10)] > threshold && target < F10) {
@@ -175,6 +194,14 @@ void loop() {
       while (1);  // Wait forever
       break;
 
+    case CALIBRATION_STRAIGHT:
+      calibrate_straight();
+      break;
+
+    case CALIBRATION_TURN:
+      calibrate_turn();
+      break;
+
     default:
       // If somehow not in any state,
       toSearching();
@@ -239,16 +266,29 @@ void goForward(int leftSpeed, int rightSpeed) {
   //  delay(15);
 }
 
+void goForward(void) {
+  analogWrite(PWM_LEFT_PIN, STRAIGHT_SPEED_LEFT);
+  analogWrite(PWM_RIGHT_PIN, rSpeed);
+}
+
 void turnLeft(float time) {
-  analogWrite(PWM_LEFT_PIN, 5480); //5420
-  analogWrite(PWM_RIGHT_PIN, 5480); //5420
+  analogWrite(PWM_LEFT_PIN, leftTurnSpeed); 
+  analogWrite(PWM_RIGHT_PIN, leftTurnSpeed); 
   delayMicroseconds(time);
-  analogWrite(PWM_LEFT_PIN, 5000);
-  analogWrite(PWM_RIGHT_PIN, 5000);
+  stopCar();
 }
 
 void startButtonISR() {
-  started = true;
+  if ((millis() - lastButtonPress) > 50) {  // Prevent button bounce
+    lastButtonPress = millis();
+    if (state == IDLING) {
+      started = true;
+    } else if (state == CALIBRATION_STRAIGHT) {
+      state = CALIBRATION_TURN;
+    } else if (state == CALIBRATION_TURN) {
+      state = IDLING;
+    }
+  }
 }
 
 int freqToIndex(int f) {
@@ -302,10 +342,60 @@ void toSearching(void) {
   while (millis() < (startTime + 1000)) {
     fftSample();
   }
-  analogWrite(PWM_LEFT_PIN, 4490);  // Turn right
-  analogWrite(PWM_RIGHT_PIN, 4490);
+  analogWrite(PWM_LEFT_PIN, RIGHT_TURN_SPEED);  // Turn right
+  analogWrite(PWM_RIGHT_PIN, RIGHT_TURN_SPEED);
   maxMag = 0;
-  Serial.println("In transition");
+//  Serial.println("In transition");
   state = SEARCHING;
+}
+
+void calibrate_straight() {
+  
+  calibrateRead = analogRead(CALIBRATION_PIN);
+
+  float adjust = (((float) calibrateRead / (779 * 4)) + 0.875);
+  Serial.print("Adjust = ");
+  Serial.println(adjust);
+  rSpeed = STRAIGHT_BASE_RIGHT * adjust;
+  if (rSpeed < 5210)
+    rSpeed = 5210;
+  else if (rSpeed > 6554)
+    rSpeed = 6554;
+  Serial.print("rSpeed = ");
+  Serial.println(rSpeed);
+  Serial.println();
+  analogWrite(PWM_LEFT_PIN, STRAIGHT_SPEED_LEFT);
+  analogWrite(PWM_RIGHT_PIN, rSpeed);
+  delay(2000);
+  stopCar();
+  delay(3000);
+}
+
+void calibrate_turn() {
+  calibrateRead = analogRead(CALIBRATION_PIN);
+
+//  Serial.print("Value = ");
+//  Serial.println(val);
+  float adjust = (((float) calibrateRead / (779 * 20)) + 0.975);
+//  Serial.print("Adjust = ");
+//  Serial.println(adjust);
+  leftTurnSpeed = LEFT_TURN_SPEED_BASE * adjust;
+  if (leftTurnSpeed < 5210)
+    leftTurnSpeed = 5210;
+  else if (leftTurnSpeed > 6554)
+    leftTurnSpeed = 6554;
+//  Serial.print("turnSpeed = ");
+//  Serial.println(turnSpeed);
+//  Serial.println();
+  analogWrite(PWM_LEFT_PIN, leftTurnSpeed);
+  analogWrite(PWM_RIGHT_PIN, leftTurnSpeed);
+  delay(1000);
+  stopCar();
+  delay(500);
+  analogWrite(PWM_LEFT_PIN, RIGHT_TURN_SPEED);
+  analogWrite(PWM_RIGHT_PIN, RIGHT_TURN_SPEED);
+  delay(1000);
+  stopCar();
+  delay(3000);
 }
 

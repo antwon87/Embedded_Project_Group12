@@ -23,8 +23,8 @@ void setup() {
 
 
 void loop() {
-//  test_forward();
-  test_turn();
+  test_forward();
+//  test_turn();
   delay(2000);
 }
 
@@ -50,8 +50,8 @@ void test_turn() {
   analogWrite(PWM_LEFT_PIN, 5000);
   analogWrite(PWM_RIGHT_PIN, 5000);
   delay(500);
-  analogWrite(PWM_LEFT_PIN, 5290);
-  analogWrite(PWM_RIGHT_PIN, 5290);
+  analogWrite(PWM_LEFT_PIN, 5350);
+  analogWrite(PWM_RIGHT_PIN, 5350);
   delay(1000);
   analogWrite(PWM_LEFT_PIN, 5000);
   analogWrite(PWM_RIGHT_PIN, 5000);
