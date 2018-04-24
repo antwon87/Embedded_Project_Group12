@@ -2,8 +2,6 @@
     The code to find the direction of a beacon is all that is
     implemented so far, but that seems to be working decently.
     There are still a couple bugs:
-      When the vehicle is pointed at the beacon when the search
-        starts, it will never stop searching.
       The search sometimes finishes in the wrong direction, not
         sure why yet.
 */
@@ -39,6 +37,10 @@ unsigned long microseconds;
 */
 double vReal[samples];
 double vImag[samples];
+#define AVG_NUMBER 20
+double avgHistory[AVG_NUMBER] = {0};
+double avgSum = 0;
+int avgPos = 0;
 
 enum StateType {IDLING, SEARCHING, FORWARD, FINISHED};
 
@@ -87,13 +89,10 @@ void loop() {
 
   switch (state) {
     case IDLING:
-            while (!started);
-//      if (started) {
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
-//      }
+      while (!started);
+      //      if (started) {
+      toSearching();
+      //      }
       break;
     case FORWARD:  // Will need to be rewritten to account for buzzers only producing sound 1/4 of the time
       analogWrite(PWM_LEFT_PIN, 6553);
@@ -102,58 +101,31 @@ void loop() {
       // Check for new target
       if (vReal[freqToIndex(F10)] > threshold && target < F10) {
         target = F10;
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
+        toSearching();
       } else if (vReal[freqToIndex(F9)] > threshold && target < F9) {
         target = F9;
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
+        toSearching();
       } else if (vReal[freqToIndex(F8)] > threshold && target < F8) {
         target = F8;
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
+        toSearching();
       } else if (vReal[freqToIndex(F7)] > threshold && target < F7) {
         target = F7;
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
+        toSearching();
       } else if (vReal[freqToIndex(F6)] > threshold && target < F6) {
         target = F6;
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
+        toSearching();
       } else if (vReal[freqToIndex(F5)] > threshold && target < F5) {
         target = F5;
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
+        toSearching();
       } else if (vReal[freqToIndex(F4)] > threshold && target < F4) {
         target = F4;
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
+        toSearching();
       } else if (vReal[freqToIndex(F3)] > threshold && target < F3) {
         target = F3;
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
+        toSearching();
       } else if (vReal[freqToIndex(F2)] > threshold && target < F2) {
         target = F2;
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
+        toSearching();
       } else {
         state = FORWARD;
       }
@@ -162,23 +134,22 @@ void loop() {
       if (tarMag > maxMag) {
         maxMag = tarMag;
       } else if (tarMag < maxMag * 0.7) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
-        state = SEARCHING;
-        analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-        analogWrite(PWM_RIGHT_PIN, 4390);
-        maxMag = 0;
+        toSearching();
       }
       break;
 
     // May need to modify to account for buzzers only producing sound 1/4 of the time
     case SEARCHING:  // Aim car at target beacon if searching
-//      analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-//      analogWrite(PWM_RIGHT_PIN, 4390);
+      //      analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
+      //      analogWrite(PWM_RIGHT_PIN, 4390);
       if (tarMag > 500) {  // Don't do anything if target magnitude is insignificant, buzzer probably off
         if (tarMag > (maxMag * 1.1)) {  // max * 1.1 is to account for FFT output fluctuation. Needs to be tuned/replaced.
           if (maxMag != 0) {
             magRiseFound = true;
           }
           maxMag = tarMag;
+          Serial.print("maxMag = ");
+          Serial.println(maxMag);
           maxTime = micros();
         } else if (magRiseFound && tarMag < (maxMag * 0.8)) {  // Turned past beacon. max * 0.8 is to account for FFT output fluctuation. Needs to be tuned/replaced.
           turnLeft(micros() - maxTime + 0);  // 150000 added because it's not turning back far enough. Could also increase speed of left turn.
@@ -206,64 +177,60 @@ void loop() {
 
     default:
       // If somehow not in any state,
-      state = SEARCHING;
+      toSearching();
       //        searchTime = 0;
       break;
   }
 
-  // FFT sampling
+  fftSample();
 
-  int validSamples = 0;  // Counting a sample as valid if the target buzzer is on. This is my idea for dealing with 25% buzzer on time.
-  while (validSamples < 10) {
-    for (int i = 0; i < samples; i++) {
-      microseconds = micros();    //Overflows after around 70 minutes!
-
-      vReal[i] = analogRead(CHANNEL);
-      vImag[i] = 0;
-      while (micros() < (microseconds + sampling_period_us)) {
-        //empty loop
-      }
-    }
-    FFT.Windowing(vReal, samples, FFT_WIN_TYP_HAMMING, FFT_FORWARD);  /* Weigh data */
-    FFT.Compute(vReal, vImag, samples, FFT_FORWARD); /* Compute FFT */
-    FFT.ComplexToMagnitude(vReal, vImag, samples); /* Compute magnitudes */
-
-    if (vReal[tarIndex] > 500) {  // 500 chosen arbitrarily. Needs testing.
-      validSamples++;
-      tarMag += vReal[tarIndex - 1] + vReal[tarIndex] + vReal[tarIndex + 1];
-    }
-  }
-  // Take an average of 10 samples for the target frequency
-  //  for (int i = 0; i < 10; ++i) {  // Will need to be changed to account for buzzers only producing sound 1/4 of the time
-  //    while (!target->available());
-  //    tarMag += target->read();
-  //  }
-  tarMag = tarMag / validSamples;
-
-  for (int i = 1000; i < 3000; i += 1000) {
-    int idx = freqToIndex(i);
-    Serial.print("F = ");
-    Serial.println(i);
-    Serial.print("Index = ");
-    Serial.println(idx);
-    for (int j = idx - 2; j <= idx + 2; j++) {
-      Serial.print("[");
-      Serial.print(j);
-      Serial.print("] = ");
-      Serial.print(vReal[j]);
-      Serial.print("    ");
-    }
-    Serial.println();
-    Serial.println();
-  }
-
+  //  Serial.print("tarMag before division = ");
   //  Serial.println(tarMag, 3);
+  //  Serial.print("valid samples = ");
+  //  Serial.println(validSamples);
+  //  Serial.print("target value in array = ");
+  //  Serial.println(vReal[tarIndex]);
+  //  tarMag = tarMag / validSamples;
+
+
+  //      for (int i = 1000; i < 3000; i += 1000) {
+  //        int idx = freqToIndex(i);
+  //        Serial.print("F = ");
+  //        Serial.println(i);
+  //        Serial.print("Index = ");
+  //        Serial.println(idx);
+  //        for (int j = idx - 2; j <= idx + 2; j++) {
+  //          Serial.print("[");
+  //          Serial.print(j);
+  //          Serial.print("] = ");
+  //          Serial.print(vReal[j]);
+  //          Serial.print("    ");
+  //        }
+  //        Serial.println();
+  //        Serial.println();
+  //      }
+  //
+  Serial.print("tarMag = ");
+  Serial.println(tarMag, 3);
   //  Serial.print("state = ");
   //  Serial.println(state);
   //  Serial.println();
+  //
+  //  static int timecount = 0;
+  //  static double times[100] = {0};
+  //  if (timecount < 100) {
+  //    times[timecount] = millis();
+  //    timecount++;
+  //  } else {
+  //    for (int i = 0; i < 100; ++i) {
+  //      Serial.println(times[i]);
+  //      times[i] = 0;
+  //    }
+  //    timecount = 0;
+  //  }
 
 
-  delay(20);
+  delay(40);
 }
 
 void goForward(int leftSpeed, int rightSpeed) {
@@ -287,3 +254,58 @@ void startButtonISR() {
 int freqToIndex(int f) {
   return round((f * samples) / samplingFrequency);
 }
+
+void fftSample(void) {
+  // FFT sampling
+  //  tarMag = 0;
+//  int validSamples = 0;  // Counting a sample as valid if the target buzzer is on. This is my idea for dealing with 25% buzzer on time.
+  //  while (validSamples < 10) {
+  for (int i = 0; i < samples; i++) {
+    microseconds = micros();    //Overflows after around 70 minutes!
+
+    vReal[i] = analogRead(CHANNEL);
+    vImag[i] = 0;
+    while (micros() < (microseconds + sampling_period_us)) {
+      //empty loop
+    }
+  }
+  FFT.Windowing(vReal, samples, FFT_WIN_TYP_HAMMING, FFT_FORWARD);  /* Weigh data */
+  FFT.Compute(vReal, vImag, samples, FFT_FORWARD); /* Compute FFT */
+  FFT.ComplexToMagnitude(vReal, vImag, samples); /* Compute magnitudes */
+  if (vReal[tarIndex] > 900) {  // value chosen arbitrarily. Needs testing.
+//    validSamples++;
+    //      Serial.print("measured: ");
+    //      Serial.println(vReal[tarIndex]);
+    //    tarMag = /*vReal[tarIndex - 1] + */vReal[tarIndex]/* + vReal[tarIndex + 1]*/;
+
+    // AVG_NUMBER point moving average
+    avgSum -= avgHistory[avgPos];
+    avgSum += vReal[tarIndex];
+    avgHistory[avgPos] = vReal[tarIndex];
+    avgPos = (avgPos == AVG_NUMBER - 1) ? 0 : avgPos + 1;
+    tarMag = avgSum / AVG_NUMBER;
+  } /*else {
+      break;
+    }*/
+  //  }
+}
+
+void stopCar(void) {
+  analogWrite(PWM_LEFT_PIN, 5000);
+  analogWrite(PWM_RIGHT_PIN, 5000);
+}
+
+void toSearching(void) {
+  stopCar();
+  double startTime = millis();
+  // Sample for 1 second to populate moving average with current readings so there is no faulty rise detected
+  while (millis() < (startTime + 1000)) {
+    fftSample();
+  }
+  analogWrite(PWM_LEFT_PIN, 4490);  // Turn right
+  analogWrite(PWM_RIGHT_PIN, 4490);
+  maxMag = 0;
+  Serial.println("In transition");
+  state = SEARCHING;
+}
+
