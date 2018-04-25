@@ -27,7 +27,7 @@
 #define STRAIGHT_SPEED_LEFT 4340
 #define STRAIGHT_BASE_RIGHT 5410
 #define RIGHT_TURN_SPEED 4490
-#define LEFT_TURN_SPEED_BASE 5350
+#define LEFT_TURN_SPEED_BASE 5320
 
 /*
   These values can be changed in order to evaluate the functions
@@ -64,7 +64,7 @@ double lastButtonPress = 0;
 double tarMag;
 
 uint16_t calibrateRead = 0;
-uint16_t rSpeed = STRAIGHT_BASE_RIGHT;
+uint16_t straightSpeedRight = STRAIGHT_BASE_RIGHT;
 uint16_t leftTurnSpeed = LEFT_TURN_SPEED_BASE;
 
 void setup() {
@@ -77,7 +77,7 @@ void setup() {
   digitalWrite(LED_PIN, LOW);
   target = F1;
   tarIndex = freqToIndex(target);
-  threshold = 1000;  // Set arbitrarily. Will need to be changed based on testing. Setting high to test only 1 beacon.
+  threshold = 1200;  // Set arbitrarily. Will need to be changed based on testing. Setting high to test only 1 beacon.
   //  f1done = false;
   //  f2done = false;
   //  f3done = false;
@@ -115,67 +115,92 @@ void loop() {
       break;
     case FORWARD:  // Will need to be rewritten to account for buzzers only producing sound 1/4 of the time
       analogWrite(PWM_LEFT_PIN, STRAIGHT_SPEED_LEFT);
-      analogWrite(PWM_RIGHT_PIN, rSpeed);
+      analogWrite(PWM_RIGHT_PIN, straightSpeedRight);
 
       // Check for new target
       if (vReal[freqToIndex(F10)] > threshold && target < F10) {
         target = F10;
+        tarIndex = freqToIndex(target);
         toSearching();
+        break;
       } else if (vReal[freqToIndex(F9)] > threshold && target < F9) {
         target = F9;
+        tarIndex = freqToIndex(target);
         toSearching();
+        break;
       } else if (vReal[freqToIndex(F8)] > threshold && target < F8) {
         target = F8;
+        tarIndex = freqToIndex(target);
         toSearching();
+        break;
       } else if (vReal[freqToIndex(F7)] > threshold && target < F7) {
         target = F7;
+        tarIndex = freqToIndex(target);
         toSearching();
+        break;
       } else if (vReal[freqToIndex(F6)] > threshold && target < F6) {
         target = F6;
+        tarIndex = freqToIndex(target);
         toSearching();
+        break;
       } else if (vReal[freqToIndex(F5)] > threshold && target < F5) {
         target = F5;
+        tarIndex = freqToIndex(target);
         toSearching();
+        break;
       } else if (vReal[freqToIndex(F4)] > threshold && target < F4) {
         target = F4;
+        tarIndex = freqToIndex(target);
         toSearching();
+        break;
       } else if (vReal[freqToIndex(F3)] > threshold && target < F3) {
         target = F3;
+        tarIndex = freqToIndex(target);
         toSearching();
+        break;
       } else if (vReal[freqToIndex(F2)] > threshold && target < F2) {
         target = F2;
+        tarIndex = freqToIndex(target);
         toSearching();
+        break;
       } else {
         state = FORWARD;
       }
 
       // Check if car is moving away from beacon
-      if (tarMag > maxMag) {
-        maxMag = tarMag;
-      } else if (tarMag < maxMag * 0.7) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
-        toSearching();
-      }
+//      if (tarMag > maxMag) {
+//        maxMag = tarMag;
+//      } else if (tarMag < maxMag * 0.7) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
+//        toSearching();
+//      }
+
+      // Draft of code for using distance sensor
+      /*
+       * distance = distanceFunc();
+       * if (distance < 10) {
+       *   if (target == F10) {
+       *     
+       */
+      
       break;
 
     // May need to modify to account for buzzers only producing sound 1/4 of the time
     case SEARCHING:  // Aim car at target beacon if searching
-      //      analogWrite(PWM_LEFT_PIN, 4390);  // Turn right
-      //      analogWrite(PWM_RIGHT_PIN, 4390);
-      if (tarMag > 500) {  // Don't do anything if target magnitude is insignificant, buzzer probably off
+      if (tarMag > 900) {  // Don't do anything if target magnitude is insignificant, buzzer probably off
         if (tarMag > (maxMag * 1.1)) {  // max * 1.1 is to account for FFT output fluctuation. Needs to be tuned/replaced.
           if (maxMag != 0) {
             magRiseFound = true;
           }
           maxMag = tarMag;
-          Serial.print("maxMag = ");
-          Serial.println(maxMag);
+//          Serial.print("maxMag = ");
+//          Serial.println(maxMag);
           maxTime = micros();
         } else if (magRiseFound && tarMag < (maxMag * 0.8)) {  // Turned past beacon. max * 0.8 is to account for FFT output fluctuation. Needs to be tuned/replaced.
           turnLeft(micros() - maxTime + 0);  // 150000 added because it's not turning back far enough. Could also increase speed of left turn.
           maxTime = 0;
           magRiseFound = false;
           //          maxMag = 0;
-          state = FINISHED;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
+          state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
         } else if (micros() - maxTime > 7000000) {  // This assumes time to turn a full circle is 5 seconds. Adjust if necessary. Should be set to some value greater than time to make a full circle.
           maxTime = micros();
           magRiseFound = false;
@@ -186,9 +211,7 @@ void loop() {
       break;
 
     case FINISHED:
-      // Stop
-      analogWrite(PWM_LEFT_PIN, 5000);
-      analogWrite(PWM_RIGHT_PIN, 5000);
+      stopCar();
       // Light an LED
       digitalWrite(LED_PIN, HIGH);
       while (1);  // Wait forever
@@ -237,8 +260,11 @@ void loop() {
   //        Serial.println();
   //      }
   //
-  Serial.print("tarMag = ");
+  Serial.print("target = ");
+  Serial.print(target);
+  Serial.print(", Mag = ");
   Serial.println(tarMag, 3);
+  Serial.println();
   //  Serial.print("state = ");
   //  Serial.println(state);
   //  Serial.println();
@@ -268,7 +294,7 @@ void goForward(int leftSpeed, int rightSpeed) {
 
 void goForward(void) {
   analogWrite(PWM_LEFT_PIN, STRAIGHT_SPEED_LEFT);
-  analogWrite(PWM_RIGHT_PIN, rSpeed);
+  analogWrite(PWM_RIGHT_PIN, straightSpeedRight);
 }
 
 void turnLeft(float time) {
@@ -353,19 +379,19 @@ void calibrate_straight() {
   
   calibrateRead = analogRead(CALIBRATION_PIN);
 
-  float adjust = (((float) calibrateRead / (779 * 4)) + 0.875);
+  float adjust = (((float) calibrateRead / (779 * 10)) + 0.95);
   Serial.print("Adjust = ");
   Serial.println(adjust);
-  rSpeed = STRAIGHT_BASE_RIGHT * adjust;
-  if (rSpeed < 5210)
-    rSpeed = 5210;
-  else if (rSpeed > 6554)
-    rSpeed = 6554;
-  Serial.print("rSpeed = ");
-  Serial.println(rSpeed);
+  straightSpeedRight = STRAIGHT_BASE_RIGHT * adjust;
+  if (straightSpeedRight < 5210)
+    straightSpeedRight = 5210;
+  else if (straightSpeedRight > 6554)
+    straightSpeedRight = 6554;
+  Serial.print("straightSpeedRight = ");
+  Serial.println(straightSpeedRight);
   Serial.println();
   analogWrite(PWM_LEFT_PIN, STRAIGHT_SPEED_LEFT);
-  analogWrite(PWM_RIGHT_PIN, rSpeed);
+  analogWrite(PWM_RIGHT_PIN, straightSpeedRight);
   delay(2000);
   stopCar();
   delay(3000);
