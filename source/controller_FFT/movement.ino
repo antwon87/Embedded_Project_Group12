@@ -38,7 +38,7 @@ void turnRight(void) {
   analogWrite(PWM_RIGHT_PIN, RIGHT_TURN_SPEED);
 }
 
-void calibrate_straight() {
+void calibrate_straight(void) {
 
   calibrateRead = analogRead(CALIBRATION_PIN);
 
@@ -60,7 +60,7 @@ void calibrate_straight() {
   delay(3000);
 }
 
-void calibrate_turn() {
+void calibrate_turn(void) {
   calibrateRead = analogRead(CALIBRATION_PIN);
 
   //  Serial.print("Value = ");

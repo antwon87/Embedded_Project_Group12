@@ -1,9 +1,5 @@
-/* This code is a draft of a full control algorithm.
-    The code to find the direction of a beacon is all that is
-    implemented so far, but that seems to be working decently.
-    There are still a couple bugs:
-      The search sometimes finishes in the wrong direction, not
-        sure why yet.
+/* Full control algorithm.
+ *   
 */
 
 #include <arduinoFFT.h>
@@ -64,7 +60,7 @@ double maxMag;
 float maxTime;
 const int threshold[10] = {400, 400, 300, 300, 200, 200, 200, 100, 500, 40};  // May need adjustment
 bool magRiseFound;
-StateType state;
+volatile StateType state;
 volatile bool started;
 double lastButtonPress = 0;
 
@@ -82,17 +78,13 @@ void setup() {
   digitalWrite(LED_PIN, LOW);
   target = F1;
   tarFFTindex = freqToIndex(target);
-  //  threshold = 1200;  // Set arbitrarily. Will need to be changed based on testing. Setting high to test only 1 beacon.
-  //  threshold[0] = 400;
-  //  f1done = false;
-  //  f2done = false;
-  //  f3done = false;
-  //  searching = true;
+
   if (digitalRead(CALIBRATION_SWITCH_PIN) == 0) {
     state = IDLING;
   } else {
     state = CALIBRATION_STRAIGHT;
   }
+
   started = false;
   maxMag = 0;
   maxTime = 0;
@@ -119,59 +111,38 @@ void loop() {
   switch (state) {
     case IDLING:
       while (!started);
-      //      if (started) {
-      toSearching();
-      //      }
+      toSearching(target);
       break;
     case FORWARD:  // Will need to be rewritten to account for buzzers only producing sound 1/4 of the time
-      analogWrite(PWM_LEFT_PIN, STRAIGHT_SPEED_LEFT);
-      analogWrite(PWM_RIGHT_PIN, straightSpeedRight);
+      goForward();
 
       // Check for new target
       if (magnitudes[9] > threshold[9] && target < F10) {
-        target = F10;
-        tarFFTindex = freqToIndex(target);
-        toSearching();
+        toSearching(F10);
         break;
       } else if (magnitudes[8] > threshold[8] && target < F9) {
-        target = F9;
-        tarFFTindex = freqToIndex(target);
-        toSearching();
+        toSearching(F9);
         break;
       } else if (magnitudes[7] > threshold[7] && target < F8) {
-        target = F8;
-        tarFFTindex = freqToIndex(target);
-        toSearching();
+        toSearching(F8);
         break;
       } else if (magnitudes[6] > threshold[6] && target < F7) {
-        target = F7;
-        tarFFTindex = freqToIndex(target);
-        toSearching();
+        toSearching(F7);
         break;
       } else if (magnitudes[5] > threshold[5] && target < F6) {
-        target = F6;
-        tarFFTindex = freqToIndex(target);
-        toSearching();
+        toSearching(F6);
         break;
       } else if (magnitudes[4] > threshold[4] && target < F5) {
-        target = F5;
-        tarFFTindex = freqToIndex(target);
-        toSearching();
+        toSearching(F5);
         break;
       } else if (magnitudes[3] > threshold[3] && target < F4) {
-        target = F4;
-        tarFFTindex = freqToIndex(target);
-        toSearching();
+        toSearching(F4);
         break;
       } else if (magnitudes[2] > threshold[2] && target < F3) {
-        target = F3;
-        tarFFTindex = freqToIndex(target);
-        toSearching();
+        toSearching(F3);
         break;
       } else if (magnitudes[1] > threshold[1] && target < F2) {
-        target = F2;
-        tarFFTindex = freqToIndex(target);
-        toSearching();
+        toSearching(F2);
         break;
       } else {
         state = FORWARD;
@@ -181,7 +152,7 @@ void loop() {
       //      if (tarMag > maxMag) {
       //        maxMag = tarMag;
       //      } else if (tarMag < maxMag * 0.7) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
-      //        toSearching();
+      //        toSearching(target);
       //      }
 
       // Draft of code for using distance sensor
@@ -205,16 +176,16 @@ void loop() {
              delay(2000);  // 2 seconds chosen arbitrarily. Test and tune.
              stopCar();
              delay(500);  // might need small delay for movement change
-             toSearching();
+             toSearching(target);
            }
          }
       */
 
       break;
 
-    // May need to modify to account for buzzers only producing sound 1/4 of the time
     case SEARCHING:  // Aim car at target beacon if searching
-      if (tarMag > 900) {  // Don't do anything if target magnitude is insignificant, buzzer probably off
+      // I don't think we need this first "if" anymore because the fft sampling handles it. Should test without it.
+      if (tarMag > threshold[(target / 1000) - 1]) {  // Don't do anything if target magnitude is insignificant, buzzer probably off
         if (tarMag > (maxMag * 1.1)) {  // max * 1.1 is to account for FFT output fluctuation. Needs to be tuned/replaced.
           if (maxMag != 0) {
             magRiseFound = true;
@@ -223,11 +194,11 @@ void loop() {
           //          Serial.print("maxMag = ");
           //          Serial.println(maxMag);
           maxTime = micros();
-        } else if (magRiseFound && tarMag < (maxMag * 0.8)) {  // Turned past beacon. max * 0.8 is to account for FFT output fluctuation. Needs to be tuned/replaced.
-          turnLeft(micros() - maxTime + 0);  // 150000 added because it's not turning back far enough. Could also increase speed of left turn.
+        } else if (magRiseFound && tarMag < (maxMag * 0.9)) {  // Turned past beacon. max * 0.9 is to account for FFT output fluctuation. Needs to be tuned/replaced.
+          turnLeft(micros() - maxTime);  // May need to add an offset if moving average filter is too slow
           maxTime = 0;
           magRiseFound = false;
-          //          maxMag = 0;
+          maxMag = tarMag;  // For accurate detection of moving away from beacon in FORWARD state.
           state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
         } else if (micros() - maxTime > 7000000) {  // This assumes time to turn a full circle is 5 seconds. Adjust if necessary. Should be set to some value greater than time to make a full circle.
           maxTime = micros();
@@ -255,22 +226,14 @@ void loop() {
 
     default:
       // If somehow not in any state,
-      toSearching();
+      toSearching(target);
       //        searchTime = 0;
       break;
   }
 
   fftSample();
 
-  //  Serial.print("tarMag before division = ");
-  //  Serial.println(tarMag, 3);
-  //  Serial.print("valid samples = ");
-  //  Serial.println(validSamples);
-  //  Serial.print("target value in array = ");
-  //  Serial.println(vReal[tarFFTindex]);
-  //  tarMag = tarMag / validSamples;
-
-
+  /* Test code for displaying raw FFT data */
   //      for (int i = 1000; i < 3000; i += 1000) {
   //        int idx = freqToIndex(i);
   //        Serial.print("F = ");
@@ -289,33 +252,22 @@ void loop() {
   //      }
   //
 
+  /* Test code for displaying moving average output */
   //  for (int i = 0; i < 10; ++i) {
   //    Serial.print(magnitudes[i], 3);
   //    Serial.print("    ");
   //  }
+  
   //  Serial.println();
   //  Serial.print("state = ");
   //  Serial.println(state);
   //  Serial.println();
-  //
-  //  static int timecount = 0;
-  //  static double times[100] = {0};
-  //  if (timecount < 100) {
-  //    times[timecount] = millis();
-  //    timecount++;
-  //  } else {
-  //    for (int i = 0; i < 100; ++i) {
-  //      Serial.println(times[i]);
-  //      times[i] = 0;
-  //    }
-  //    timecount = 0;
-  //  }
-  
+
   delay(40);
 }
 
 void startButtonISR() {
-  if ((millis() - lastButtonPress) > 50) {  // Prevent button bounce
+  if ((millis() - lastButtonPress) > 100) {  // Prevent button bounce
     lastButtonPress = millis();
     if (state == IDLING) {
       started = true;
@@ -327,8 +279,10 @@ void startButtonISR() {
   }
 }
 
-void toSearching(void) {
+void toSearching(int tar) {
   stopCar();
+  target = tar;
+  tarFFTindex = freqToIndex(tar);
   double startTime = millis();
   // Sample for 1 second to populate moving average with current readings so there is no faulty rise detected
   while (millis() < (startTime + 1000)) {
@@ -339,5 +293,4 @@ void toSearching(void) {
   //  Serial.println("In transition");
   state = SEARCHING;
 }
-
 
