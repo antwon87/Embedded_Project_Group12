@@ -30,7 +30,7 @@
   These values can be changed in order to evaluate the functions
 */
 #define CHANNEL A2
-const uint16_t samples = 128; //This value MUST ALWAYS be a power of 2
+const uint16_t samples = 256; //This value MUST ALWAYS be a power of 2
 const double samplingFrequency = 22000; //Hz, must be less than 10000 due to ADC
 unsigned int sampling_period_us;
 unsigned long microseconds;
@@ -105,8 +105,6 @@ void loop() {
   //  Serial.println(state);
   Serial.print("Target = ");
   Serial.println(target);
-  Serial.print("magnitudes[9] = ");
-  Serial.println(magnitudes[9]);
 
   switch (state) {
     case IDLING:
@@ -159,7 +157,7 @@ void loop() {
       /*
          distance = distanceFunc();
          if (distance < 10) {
-           if (target == F10) {  // If approaching last beacon, keep going a bit, then be done!
+           if (target == F10 && tarMag > 500) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
              delay(2000);  // Tune delay to time it takes to move forward 10cm
              state = FINISHED;
              break;
@@ -253,10 +251,10 @@ void loop() {
   //
 
   /* Test code for displaying moving average output */
-  //  for (int i = 0; i < 10; ++i) {
-  //    Serial.print(magnitudes[i], 3);
-  //    Serial.print("    ");
-  //  }
+    for (int i = 0; i < 10; ++i) {
+      Serial.print(magnitudes[i], 3);
+      Serial.print("    ");
+    }
   
   //  Serial.println();
   //  Serial.print("state = ");
