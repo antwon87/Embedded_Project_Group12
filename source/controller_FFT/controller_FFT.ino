@@ -8,12 +8,6 @@
 
 #include <arduinoFFT.h>
 
-#define PWM_LEFT_PIN  3
-#define PWM_RIGHT_PIN 5
-#define LED_PIN       13
-#define START_BUT_PIN 7
-#define CALIBRATION_PIN A9
-#define CALIBRATION_SWITCH_PIN 11
 #define F1 1000
 #define F2 2000
 #define F3 3000
@@ -24,6 +18,13 @@
 #define F8 8000
 #define F9 9000
 #define F10 10000
+
+#define PWM_LEFT_PIN  3
+#define PWM_RIGHT_PIN 5
+#define LED_PIN       13
+#define START_BUT_PIN 7
+#define CALIBRATION_PIN A9
+#define CALIBRATION_SWITCH_PIN 11
 #define STRAIGHT_SPEED_LEFT 4340
 #define STRAIGHT_BASE_RIGHT 5410
 #define RIGHT_TURN_SPEED 4490
@@ -49,20 +50,23 @@ double avgHistory[10][AVG_NUMBER] = {0};
 double avgSum[10] = {0};
 int avgPos[10] = {0};
 double magnitudes[10] = {0};
+double tarAvgSum = 0;
+double tarAvgHistory[AVG_NUMBER] = {0};
+int tarAvgPos = 0;
+double tarMag = 0;
 
 enum StateType {IDLING, SEARCHING, FORWARD, FINISHED, CALIBRATION_STRAIGHT, CALIBRATION_TURN};
 
 arduinoFFT FFT = arduinoFFT();
 int target;
-int tarIndex;
+int tarFFTindex;
 double maxMag;
 float maxTime;
-int threshold[10] = {400, 400, 300, 300, 200, 200, 200, 100, 500, 40};  // May need adjustment
+const int threshold[10] = {400, 400, 300, 300, 200, 200, 200, 100, 500, 40};  // May need adjustment
 bool magRiseFound;
 StateType state;
 volatile bool started;
 double lastButtonPress = 0;
-double tarMag;
 
 uint16_t calibrateRead = 0;
 uint16_t straightSpeedRight = STRAIGHT_BASE_RIGHT;
@@ -77,9 +81,9 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(START_BUT_PIN), startButtonISR, FALLING);
   digitalWrite(LED_PIN, LOW);
   target = F1;
-  tarIndex = freqToIndex(target);
-//  threshold = 1200;  // Set arbitrarily. Will need to be changed based on testing. Setting high to test only 1 beacon.
-//  threshold[0] = 400;
+  tarFFTindex = freqToIndex(target);
+  //  threshold = 1200;  // Set arbitrarily. Will need to be changed based on testing. Setting high to test only 1 beacon.
+  //  threshold[0] = 400;
   //  f1done = false;
   //  f2done = false;
   //  f3done = false;
@@ -105,8 +109,8 @@ void setup() {
 }
 
 void loop() {
-//  Serial.print("state = ");
-//  Serial.println(state);
+  //  Serial.print("state = ");
+  //  Serial.println(state);
   Serial.print("Target = ");
   Serial.println(target);
   Serial.print("magnitudes[9] = ");
@@ -126,47 +130,47 @@ void loop() {
       // Check for new target
       if (magnitudes[9] > threshold[9] && target < F10) {
         target = F10;
-        tarIndex = freqToIndex(target);
+        tarFFTindex = freqToIndex(target);
         toSearching();
         break;
       } else if (magnitudes[8] > threshold[8] && target < F9) {
         target = F9;
-        tarIndex = freqToIndex(target);
+        tarFFTindex = freqToIndex(target);
         toSearching();
         break;
       } else if (magnitudes[7] > threshold[7] && target < F8) {
         target = F8;
-        tarIndex = freqToIndex(target);
+        tarFFTindex = freqToIndex(target);
         toSearching();
         break;
       } else if (magnitudes[6] > threshold[6] && target < F7) {
         target = F7;
-        tarIndex = freqToIndex(target);
+        tarFFTindex = freqToIndex(target);
         toSearching();
         break;
       } else if (magnitudes[5] > threshold[5] && target < F6) {
         target = F6;
-        tarIndex = freqToIndex(target);
+        tarFFTindex = freqToIndex(target);
         toSearching();
         break;
       } else if (magnitudes[4] > threshold[4] && target < F5) {
         target = F5;
-        tarIndex = freqToIndex(target);
+        tarFFTindex = freqToIndex(target);
         toSearching();
         break;
       } else if (magnitudes[3] > threshold[3] && target < F4) {
         target = F4;
-        tarIndex = freqToIndex(target);
+        tarFFTindex = freqToIndex(target);
         toSearching();
         break;
       } else if (magnitudes[2] > threshold[2] && target < F3) {
         target = F3;
-        tarIndex = freqToIndex(target);
+        tarFFTindex = freqToIndex(target);
         toSearching();
         break;
       } else if (magnitudes[1] > threshold[1] && target < F2) {
         target = F2;
-        tarIndex = freqToIndex(target);
+        tarFFTindex = freqToIndex(target);
         toSearching();
         break;
       } else {
@@ -184,8 +188,26 @@ void loop() {
       /*
          distance = distanceFunc();
          if (distance < 10) {
-           if (target == F10) {
-
+           if (target == F10) {  // If approaching last beacon, keep going a bit, then be done!
+             delay(2000);  // Tune delay to time it takes to move forward 10cm
+             state = FINISHED;
+             break;
+           } else {  // Approaching another beacon. Stop and then... do something
+             stopCar();
+             delay(500);  // might need small delay for movement change
+             turnRight();
+             while (distance < 15) {
+               // Call distance check function if necessary
+             }
+             stopCar();
+             delay(500);  // might need small delay for movement change
+             goForward();
+             delay(2000);  // 2 seconds chosen arbitrarily. Test and tune.
+             stopCar();
+             delay(500);  // might need small delay for movement change
+             toSearching();
+           }
+         }
       */
 
       break;
@@ -245,7 +267,7 @@ void loop() {
   //  Serial.print("valid samples = ");
   //  Serial.println(validSamples);
   //  Serial.print("target value in array = ");
-  //  Serial.println(vReal[tarIndex]);
+  //  Serial.println(vReal[tarFFTindex]);
   //  tarMag = tarMag / validSamples;
 
 
@@ -266,12 +288,12 @@ void loop() {
   //        Serial.println();
   //      }
   //
-  
-//  for (int i = 0; i < 10; ++i) {
-//    Serial.print(magnitudes[i], 3);
-//    Serial.print("    ");
-//  }
-//  Serial.println();
+
+  //  for (int i = 0; i < 10; ++i) {
+  //    Serial.print(magnitudes[i], 3);
+  //    Serial.print("    ");
+  //  }
+  //  Serial.println();
   //  Serial.print("state = ");
   //  Serial.println(state);
   //  Serial.println();
@@ -288,27 +310,8 @@ void loop() {
   //    }
   //    timecount = 0;
   //  }
-
-
+  
   delay(40);
-}
-
-void goForward(int leftSpeed, int rightSpeed) {
-  analogWrite(PWM_LEFT_PIN, leftSpeed);           //6553
-  analogWrite(PWM_RIGHT_PIN, rightSpeed);          // 3276
-  //  delay(15);
-}
-
-void goForward(void) {
-  analogWrite(PWM_LEFT_PIN, STRAIGHT_SPEED_LEFT);
-  analogWrite(PWM_RIGHT_PIN, straightSpeedRight);
-}
-
-void turnLeft(float time) {
-  analogWrite(PWM_LEFT_PIN, leftTurnSpeed);
-  analogWrite(PWM_RIGHT_PIN, leftTurnSpeed);
-  delayMicroseconds(time);
-  stopCar();
 }
 
 void startButtonISR() {
@@ -324,55 +327,6 @@ void startButtonISR() {
   }
 }
 
-int freqToIndex(int f) {
-  return round((f * samples) / samplingFrequency);
-}
-
-void fftSample(void) {
-  // FFT sampling
-  //  tarMag = 0;
-  //  int validSamples = 0;  // Counting a sample as valid if the target buzzer is on. This is my idea for dealing with 25% buzzer on time.
-  //  while (validSamples < 10) {
-  for (int i = 0; i < samples; i++) {
-    microseconds = micros();    //Overflows after around 70 minutes!
-
-    vReal[i] = analogRead(CHANNEL);
-    vImag[i] = 0;
-    while (micros() < (microseconds + sampling_period_us)) {
-      //empty loop
-    }
-  }
-  FFT.Windowing(vReal, samples, FFT_WIN_TYP_HAMMING, FFT_FORWARD);  /* Weigh data */
-  FFT.Compute(vReal, vImag, samples, FFT_FORWARD); /* Compute FFT */
-  FFT.ComplexToMagnitude(vReal, vImag, samples); /* Compute magnitudes */
-  for (int i = 0; i < 10; ++i) {
-    if (vReal[freqToIndex((i + 1) * 1000)] > threshold[i]) {  // value chosen arbitrarily. Needs testing.
-      //    validSamples++;
-      //      Serial.print("measured: ");
-      //      Serial.println(vReal[tarIndex]);
-      //    tarMag = /*vReal[tarIndex - 1] + */vReal[tarIndex]/* + vReal[tarIndex + 1]*/;
-
-      // AVG_NUMBER point moving average
-      avgSum[i] -= avgHistory[i][avgPos[i]];
-      avgSum[i] += vReal[freqToIndex((i + 1) * 1000)];
-      avgHistory[i][avgPos[i]] = vReal[freqToIndex((i + 1) * 1000)];
-      avgPos[i] = (avgPos[i] == AVG_NUMBER - 1) ? 0 : avgPos[i] + 1;
-      magnitudes[i] = avgSum[i] / AVG_NUMBER;
-      if (target == (i + 1) * 1000) {
-        tarMag = magnitudes[i];
-      }
-    } /*else {
-      break;
-    }*/
-  }
-  //  }
-}
-
-void stopCar(void) {
-  analogWrite(PWM_LEFT_PIN, 5000);
-  analogWrite(PWM_RIGHT_PIN, 5000);
-}
-
 void toSearching(void) {
   stopCar();
   double startTime = millis();
@@ -380,60 +334,10 @@ void toSearching(void) {
   while (millis() < (startTime + 1000)) {
     fftSample();
   }
-  analogWrite(PWM_LEFT_PIN, RIGHT_TURN_SPEED);  // Turn right
-  analogWrite(PWM_RIGHT_PIN, RIGHT_TURN_SPEED);
+  turnRight();
   maxMag = 0;
   //  Serial.println("In transition");
   state = SEARCHING;
 }
 
-void calibrate_straight() {
-
-  calibrateRead = analogRead(CALIBRATION_PIN);
-
-  float adjust = (((float) calibrateRead / (779 * 10)) + 0.95);
-  Serial.print("Adjust = ");
-  Serial.println(adjust);
-  straightSpeedRight = STRAIGHT_BASE_RIGHT * adjust;
-  if (straightSpeedRight < 5210)
-    straightSpeedRight = 5210;
-  else if (straightSpeedRight > 6554)
-    straightSpeedRight = 6554;
-  Serial.print("straightSpeedRight = ");
-  Serial.println(straightSpeedRight);
-  Serial.println();
-  analogWrite(PWM_LEFT_PIN, STRAIGHT_SPEED_LEFT);
-  analogWrite(PWM_RIGHT_PIN, straightSpeedRight);
-  delay(2000);
-  stopCar();
-  delay(3000);
-}
-
-void calibrate_turn() {
-  calibrateRead = analogRead(CALIBRATION_PIN);
-
-  //  Serial.print("Value = ");
-  //  Serial.println(val);
-  float adjust = (((float) calibrateRead / (779 * 20)) + 0.975);
-  //  Serial.print("Adjust = ");
-  //  Serial.println(adjust);
-  leftTurnSpeed = LEFT_TURN_SPEED_BASE * adjust;
-  if (leftTurnSpeed < 5210)
-    leftTurnSpeed = 5210;
-  else if (leftTurnSpeed > 6554)
-    leftTurnSpeed = 6554;
-  //  Serial.print("turnSpeed = ");
-  //  Serial.println(turnSpeed);
-  //  Serial.println();
-  analogWrite(PWM_LEFT_PIN, leftTurnSpeed);
-  analogWrite(PWM_RIGHT_PIN, leftTurnSpeed);
-  delay(1000);
-  stopCar();
-  delay(500);
-  analogWrite(PWM_LEFT_PIN, RIGHT_TURN_SPEED);
-  analogWrite(PWM_RIGHT_PIN, RIGHT_TURN_SPEED);
-  delay(1000);
-  stopCar();
-  delay(3000);
-}
 
