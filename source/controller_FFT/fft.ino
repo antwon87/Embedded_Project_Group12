@@ -15,10 +15,13 @@ void fftSample(void) {
 
   // AVG_NUMBER point moving average for all frequencies of interest
   for (int i = 0; i < 10; ++i) {
-
+    double reading =
+      vReal[freqToIndex((i + (F1 / 1000)) * 1000) - 1] +
+      vReal[freqToIndex((i + (F1 / 1000)) * 1000) + 1] +
+      vReal[freqToIndex((i + (F1 / 1000)) * 1000)];
     avgSum[i] -= avgHistory[i][avgPos[i]];
-    avgSum[i] += vReal[freqToIndex((i + 1) * 1000)];
-    avgHistory[i][avgPos[i]] = vReal[freqToIndex((i + 1) * 1000)];
+    avgSum[i] += reading;
+    avgHistory[i][avgPos[i]] = reading;
     avgPos[i] = (avgPos[i] == AVG_NUMBER - 1) ? 0 : avgPos[i] + 1;
     magnitudes[i] = avgSum[i] / AVG_NUMBER;
   }
@@ -26,13 +29,29 @@ void fftSample(void) {
   // Moving average for the target. New values only added to average if above threshold.
   // This is meant to handle the buzzers only being on half the time. When the buzzer is
   // off, the value will simply be ignored and the average won't change.
-  if (vReal[tarFFTindex] > threshold[(target / 1000) - 1]) {
+  if ((vReal[tarFFTindex - 1] + vReal[tarFFTindex + 1] + vReal[tarFFTindex]) > threshold[(target / 1000) - (F1 / 1000)]) {
     tarAvgSum -= tarAvgHistory[tarAvgPos];
-    tarAvgSum += vReal[tarFFTindex];
-    tarAvgHistory[tarAvgPos] = vReal[tarFFTindex];
+    tarAvgSum +=
+      vReal[tarFFTindex - 1] +
+      vReal[tarFFTindex + 1] +
+      vReal[tarFFTindex];
+    tarAvgHistory[tarAvgPos] =
+      vReal[tarFFTindex - 1] +
+      vReal[tarFFTindex + 1] +
+      vReal[tarFFTindex];
     tarAvgPos = (tarAvgPos == AVG_NUMBER - 1) ? 0 : tarAvgPos + 1;
     tarMag = tarAvgSum / AVG_NUMBER;
   }
+
+  /* Test code for displaying moving average output */
+  Serial.print("Target = ");
+  Serial.print(target);
+  Serial.print("   ");
+  for (int i = 0; i < 10; ++i) {
+    Serial.print(magnitudes[i], 3);
+    Serial.print("    ");
+  }
+  Serial.println(tarMag);
 }
 
 int freqToIndex(int f) {

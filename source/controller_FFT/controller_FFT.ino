@@ -1,19 +1,32 @@
 /* Full control algorithm.
- *   
+   Current issues:
+      Wheels generate significant noise, especially in the 14kHz range.
+        May need to alter the searching algorithm to stop when taking readings
+        rather than move continuously.
 */
 
 #include <arduinoFFT.h>
 
-#define F1 1000
-#define F2 2000
-#define F3 3000
-#define F4 4000
-#define F5 5000
-#define F6 6000
-#define F7 7000
-#define F8 8000
-#define F9 9000
-#define F10 10000
+#define F1 5000
+#define F2 6000
+#define F3 7000
+#define F4 8000
+#define F5 9000
+#define F6 10000
+#define F7 11000
+#define F8 12000
+#define F9 13000
+#define F10 14000
+//#define F1 1000
+//#define F2 2000
+//#define F3 3000
+//#define F4 4000
+//#define F5 5000
+//#define F6 6000
+//#define F7 7000
+//#define F8 8000
+//#define F9 9000
+//#define F10 10000
 
 #define PWM_LEFT_PIN  3
 #define PWM_RIGHT_PIN 5
@@ -21,9 +34,9 @@
 #define START_BUT_PIN 7
 #define CALIBRATION_PIN A9
 #define CALIBRATION_SWITCH_PIN 11
-#define STRAIGHT_SPEED_LEFT 4340
-#define STRAIGHT_BASE_RIGHT 5410
-#define RIGHT_TURN_SPEED 4490
+#define STRAIGHT_SPEED_LEFT 4440  // 4340
+#define STRAIGHT_BASE_RIGHT 5310  // 5410
+#define RIGHT_TURN_SPEED 4490  // 4490
 #define LEFT_TURN_SPEED_BASE 5320
 
 /*
@@ -31,7 +44,7 @@
 */
 #define CHANNEL A2
 const uint16_t samples = 256; //This value MUST ALWAYS be a power of 2
-const double samplingFrequency = 22000; //Hz, must be less than 10000 due to ADC
+const double samplingFrequency = 30000; //Hz
 unsigned int sampling_period_us;
 unsigned long microseconds;
 
@@ -58,7 +71,7 @@ int target;
 int tarFFTindex;
 double maxMag;
 float maxTime;
-const int threshold[10] = {400, 400, 300, 300, 200, 200, 200, 100, 500, 40};  // May need adjustment
+const int threshold[10] = {180, 120, 90, 90, 90, 90, 75, 75, 70, 70};  // Needs adjustment
 bool magRiseFound;
 volatile StateType state;
 volatile bool started;
@@ -67,6 +80,8 @@ double lastButtonPress = 0;
 uint16_t calibrateRead = 0;
 uint16_t straightSpeedRight = STRAIGHT_BASE_RIGHT;
 uint16_t leftTurnSpeed = LEFT_TURN_SPEED_BASE;
+
+elapsedMillis forwardTime = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -103,59 +118,77 @@ void setup() {
 void loop() {
   //  Serial.print("state = ");
   //  Serial.println(state);
-  Serial.print("Target = ");
-  Serial.println(target);
 
   switch (state) {
     case IDLING:
-      while (!started);
-      toSearching(target);
+      //      while (!started);
+      if (started)  
+        toSearching(target);
+      //        goForward();  // testing the noise of the wheels going forward
       break;
     case FORWARD:  // Will need to be rewritten to account for buzzers only producing sound 1/4 of the time
-      goForward();
+//      goForward();
 
-      // Check for new target
-      if (magnitudes[9] > threshold[9] && target < F10) {
-        toSearching(F10);
-        break;
-      } else if (magnitudes[8] > threshold[8] && target < F9) {
-        toSearching(F9);
-        break;
-      } else if (magnitudes[7] > threshold[7] && target < F8) {
-        toSearching(F8);
-        break;
-      } else if (magnitudes[6] > threshold[6] && target < F7) {
-        toSearching(F7);
-        break;
-      } else if (magnitudes[5] > threshold[5] && target < F6) {
-        toSearching(F6);
-        break;
-      } else if (magnitudes[4] > threshold[4] && target < F5) {
-        toSearching(F5);
-        break;
-      } else if (magnitudes[3] > threshold[3] && target < F4) {
-        toSearching(F4);
-        break;
-      } else if (magnitudes[2] > threshold[2] && target < F3) {
-        toSearching(F3);
-        break;
-      } else if (magnitudes[1] > threshold[1] && target < F2) {
-        toSearching(F2);
-        break;
-      } else {
+      // Periodically check for new target
+      if (forwardTime >= 2000) {
+        // Wheels generate significant noise, especially in the 14kHz range.
+        // So, we must stop before looking for new signals.
+        stopCar();
+        delay(500);  // Wait a bit just to ensure the wheels are stopped before sampling
+        forwardTime = 0;
+        // Sample for 500ms while stopped
+        while (forwardTime < 500) {
+          fftSample();
+        }
+        if (magnitudes[9] > threshold[9] && target < F10) {
+          toSearching(F10);
+          break;
+        } else if (magnitudes[8] > threshold[8] && target < F9) {
+          toSearching(F9);
+          break;
+        } else if (magnitudes[7] > threshold[7] && target < F8) {
+          toSearching(F8);
+          break;
+        } else if (magnitudes[6] > threshold[6] && target < F7) {
+          toSearching(F7);
+          break;
+        } else if (magnitudes[5] > threshold[5] && target < F6) {
+          toSearching(F6);
+          break;
+        } else if (magnitudes[4] > threshold[4] && target < F5) {
+          toSearching(F5);
+          break;
+        } else if (magnitudes[3] > threshold[3] && target < F4) {
+          toSearching(F4);
+          break;
+        } else if (magnitudes[2] > threshold[2] && target < F3) {
+          toSearching(F3);
+          break;
+        } else if (magnitudes[1] > threshold[1] && target < F2) {
+          toSearching(F2);
+          break;
+        } /*else {
         state = FORWARD;
+      }*/
+
+        //       Check if car is moving away from beacon
+        if (tarMag > maxMag) {
+          maxMag = tarMag;
+        } else if (tarMag < maxMag * 0.5) {  // 0.5 chosen as an arbitrary threshold. Should be tuned.
+          Serial.println("GONE SEARCHING");  // Test code to see if this event has occurred
+          delay(2000);
+          toSearching(target);
+          break;
+        }
+
+        forwardTime = 0;
+//        goForward();
       }
 
-      // Check if car is moving away from beacon
-      //      if (tarMag > maxMag) {
-      //        maxMag = tarMag;
-      //      } else if (tarMag < maxMag * 0.7) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
-      //        toSearching(target);
-      //      }
 
       // Draft of code for using distance sensor
       /*
-         distance = distanceFunc();
+         distance = distanceFunc();  // If there is a function to call, do so
          if (distance < 10) {
            if (target == F10 && tarMag > 500) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
              delay(2000);  // Tune delay to time it takes to move forward 10cm
@@ -183,28 +216,27 @@ void loop() {
 
     case SEARCHING:  // Aim car at target beacon if searching
       // I don't think we need this first "if" anymore because the fft sampling handles it. Should test without it.
-      if (tarMag > threshold[(target / 1000) - 1]) {  // Don't do anything if target magnitude is insignificant, buzzer probably off
-        if (tarMag > (maxMag * 1.1)) {  // max * 1.1 is to account for FFT output fluctuation. Needs to be tuned/replaced.
-          if (maxMag != 0) {
-            magRiseFound = true;
-          }
-          maxMag = tarMag;
-          //          Serial.print("maxMag = ");
-          //          Serial.println(maxMag);
-          maxTime = micros();
-        } else if (magRiseFound && tarMag < (maxMag * 0.9)) {  // Turned past beacon. max * 0.9 is to account for FFT output fluctuation. Needs to be tuned/replaced.
-          turnLeft(micros() - maxTime);  // May need to add an offset if moving average filter is too slow
-          maxTime = 0;
-          magRiseFound = false;
-          maxMag = tarMag;  // For accurate detection of moving away from beacon in FORWARD state.
-          state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
-        } else if (micros() - maxTime > 7000000) {  // This assumes time to turn a full circle is 5 seconds. Adjust if necessary. Should be set to some value greater than time to make a full circle.
-          maxTime = micros();
-          magRiseFound = false;
-          maxMag = tarMag;
-          //          state = FINISHED;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
+      //      if (tarMag > threshold[(target / 1000) - (F1 / 1000)]) {  // Don't do anything if target magnitude is insignificant, buzzer probably off
+      if (tarMag > (maxMag * 1.1)) {  // max * 1.1 is to account for FFT output fluctuation. Needs to be tuned/replaced.
+        if (maxMag != 0) {
+          magRiseFound = true;
         }
+        maxMag = tarMag;
+        //          Serial.print("maxMag = ");
+        //          Serial.println(maxMag);
+        maxTime = micros();
+      } else if (magRiseFound && tarMag < (maxMag * 0.9)) {  // Turned past beacon. max * 0.9 is to account for FFT output fluctuation. Needs to be tuned/replaced.
+        turnLeft(micros() - maxTime);  // May need to add an offset if moving average filter is too slow
+        maxTime = 0;
+        magRiseFound = false;
+        maxMag = tarMag;  // For accurate detection of moving away from beacon in FORWARD state.
+        state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
+      } else if (micros() - maxTime > 7000000) {  // This assumes time to turn a full circle is 5 seconds. Adjust if necessary. Should be set to some value greater than time to make a full circle.
+        maxTime = micros();
+        magRiseFound = false;
+        maxMag = tarMag;
       }
+      //      }
       break;
 
     case FINISHED:
@@ -250,12 +282,8 @@ void loop() {
   //      }
   //
 
-  /* Test code for displaying moving average output */
-    for (int i = 0; i < 10; ++i) {
-      Serial.print(magnitudes[i], 3);
-      Serial.print("    ");
-    }
-  
+
+
   //  Serial.println();
   //  Serial.print("state = ");
   //  Serial.println(state);
@@ -281,8 +309,17 @@ void toSearching(int tar) {
   stopCar();
   target = tar;
   tarFFTindex = freqToIndex(tar);
-  double startTime = millis();
+
+  // Reset running average for new target
+  tarAvgSum = 0;
+  tarAvgPos = 0;
+  tarMag = 0;
+  for (int i = 0; i < AVG_NUMBER; ++i) {
+    tarAvgHistory[i] = 0;
+  }
+
   // Sample for 1 second to populate moving average with current readings so there is no faulty rise detected
+  double startTime = millis();
   while (millis() < (startTime + 1000)) {
     fftSample();
   }
