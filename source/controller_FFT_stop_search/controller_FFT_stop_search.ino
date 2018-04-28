@@ -34,10 +34,25 @@
 #define START_BUT_PIN 7
 #define CALIBRATION_PIN A9
 #define CALIBRATION_SWITCH_PIN 11
-#define STRAIGHT_SPEED_LEFT 4440  // 4340
-#define STRAIGHT_BASE_RIGHT 5404  // 5410
+#define TRIG_PIN 8
+#define ECHO_PIN 9
+
+#define FAST_SPEEDS
+#ifdef FAST_SPEEDS
+#define STRAIGHT_SPEED_LEFT 4240
+#define STRAIGHT_BASE_RIGHT 5493
+#define RIGHT_TURN_SPEED 4290
+#define LEFT_TURN_SPEED_BASE 5458
+#define BASE_FORWARD_MICROS 1500000
+#define BASE_TURN_MICROS 440000
+#else
+#define STRAIGHT_SPEED_LEFT 4440  // 4440
+#define STRAIGHT_BASE_RIGHT 5280  // 5404
 #define RIGHT_TURN_SPEED 4490  // 4490
 #define LEFT_TURN_SPEED_BASE 5325
+#define BASE_FORWARD_MICROS 4000000
+#define BASE_TURN_MICROS 1000000
+#endif
 
 /*
   These values can be changed in order to evaluate the functions
@@ -70,8 +85,8 @@ arduinoFFT FFT = arduinoFFT();
 int target;
 int tarFFTindex;
 double maxMag;
-float maxTime;
-const int threshold[10] = {180, 120, 90, 90, 90, 90, 75, 75, 70, 70};  // Needs adjustment
+//float maxTime;
+const int threshold[10] = {90, 90, 90, 90, 90, 90, 75, 75, 70, 70};  // Needs adjustment
 bool magRiseFound;
 volatile StateType state;
 volatile bool started;
@@ -82,6 +97,8 @@ uint16_t straightSpeedRight = STRAIGHT_BASE_RIGHT;
 uint16_t leftTurnSpeed = LEFT_TURN_SPEED_BASE;
 
 elapsedMillis forwardTime = 0;
+elapsedMicros searchTime = 0;
+unsigned long turnTime = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -102,7 +119,7 @@ void setup() {
 
   started = false;
   maxMag = 0;
-  maxTime = 0;
+  //  maxTime = 0;
   magRiseFound = false;
   tarMag = 0;
 
@@ -113,24 +130,31 @@ void setup() {
   analogWriteResolution(16);          // (# of bits)
 
   sampling_period_us = round(1000000 * (1.0 / samplingFrequency));
+
+  pinMode(TRIG_PIN, OUTPUT); // Sets the trigPin as an Output
+  pinMode(ECHO_PIN, INPUT); // Sets the echoPin as an Input
 }
 
 void loop() {
   //  Serial.print("state = ");
   //  Serial.println(state);
 
+  unsigned int distance = 400;
+
   switch (state) {
     case IDLING:
       //      while (!started);
-      if (started)  
+      if (started)
         toSearching(target);
-      //        goForward();  // testing the noise of the wheels going forward
+      //        fftSample();  // For testing. Could remove for final.
+      //      distance = ultraSonic();  // For testing. Remove for final.
+      //      goForward();  // testing the noise of the wheels going forward
       break;
     case FORWARD:  // Will need to be rewritten to account for buzzers only producing sound 1/4 of the time
-//      goForward();
+      goForward();
 
       // Periodically check for new target
-      if (forwardTime >= 2000) {
+      if (forwardTime > BASE_FORWARD_MICROS / 1000) {
         // Wheels generate significant noise, especially in the 14kHz range.
         // So, we must stop before looking for new signals.
         stopCar();
@@ -182,61 +206,65 @@ void loop() {
         }
 
         forwardTime = 0;
-//        goForward();
+        goForward();
       }
 
-
       // Draft of code for using distance sensor
-      /*
-         distance = distanceFunc();  // If there is a function to call, do so
-         if (distance < 10) {
-           if (target == F10 && tarMag > 500) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
-             delay(2000);  // Tune delay to time it takes to move forward 10cm
-             state = FINISHED;
-             break;
-           } else {  // Approaching another beacon. Stop and then... do something
-             stopCar();
-             delay(100);  // might need small delay for movement change
-             turnRight();
-             while (distance < 15) {
-               // Call distance check function if necessary
-             }
-             stopCar();
-             delay(100);  // might need small delay for movement change
-             goForward();
-             delay(2000);  // 2 seconds chosen arbitrarily. Test and tune.
-             stopCar();
-             delay(100);  // might need small delay for movement change
-             toSearching(target);
-           }
-         }
-      */
+//      distance = ultraSonic();  // If there is a function to call, do so
+//      if (distance > 0 && distance < 10) {
+//        if (target == F10 && tarMag > 500) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
+//          delay(3000);  // Tune delay to time it takes to move forward 10cm
+//          state = FINISHED;
+//          break;
+//        } else {  // Approaching another beacon. Stop, turn right a bit, go forward, then search for the target direction again.
+//          evasiveManeuvers();
+//        }
+//      }
 
       break;
 
     case SEARCHING:  // Aim car at target beacon if searching
-      // I don't think we need this first "if" anymore because the fft sampling handles it. Should test without it.
-      //      if (tarMag > threshold[(target / 1000) - (F1 / 1000)]) {  // Don't do anything if target magnitude is insignificant, buzzer probably off
-      if (tarMag > (maxMag * 1.1)) {  // max * 1.1 is to account for FFT output fluctuation. Needs to be tuned/replaced.
-        if (maxMag != 0) {
-          magRiseFound = true;
+      if (searchTime > BASE_TURN_MICROS * 0.6) {  // Stop periodically to sample so wheel noise doesn't interfere
+        turnTime += searchTime;
+        stopCar();
+        delay(100);  // Wait a bit just to ensure the wheels are stopped before sampling
+        searchTime = 0;
+        // Sample for 500ms while stopped
+        while (searchTime < 500000) {
+          fftSample();
         }
-        maxMag = tarMag;
-        //          Serial.print("maxMag = ");
-        //          Serial.println(maxMag);
-        maxTime = micros();
-      } else if (magRiseFound && tarMag < (maxMag * 0.9)) {  // Turned past beacon. max * 0.9 is to account for FFT output fluctuation. Needs to be tuned/replaced.
-        turnLeft(micros() - maxTime);  // May need to add an offset if moving average filter is too slow
-        maxTime = 0;
-        magRiseFound = false;
-        maxMag = tarMag;  // For accurate detection of moving away from beacon in FORWARD state.
-        state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
-      } else if (micros() - maxTime > 7000000) {  // This assumes time to turn a full circle is 5 seconds. Adjust if necessary. Should be set to some value greater than time to make a full circle.
-        maxTime = micros();
-        magRiseFound = false;
-        maxMag = tarMag;
+
+        if (tarMag > (maxMag * 1.1)) {  // max * 1.1 is to account for FFT output fluctuation. Needs to be tuned/replaced.
+          if (maxMag != 0) {
+            magRiseFound = true;
+          }
+          maxMag = tarMag;
+          Serial.println();
+          Serial.print("MAXMAG = ");
+          Serial.println(maxMag);
+          Serial.println();
+          //          maxTime = micros();
+          turnTime = 0;
+        } else if (magRiseFound && tarMag < (maxMag * 0.7)) {  // Turned past beacon. max * 0.9 is to account for FFT output fluctuation. Needs to be tuned/replaced.
+          turnLeft(turnTime);  // May need to add an offset if moving average filter is too slow
+          //          maxTime = 0;
+          turnTime = 0;
+          magRiseFound = false;
+          maxMag = tarMag;  // For accurate detection of moving away from beacon in FORWARD state.
+          state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
+          break;
+        } else if (turnTime > BASE_TURN_MICROS * 11) {  // This assumes time to turn a full circle is 11 seconds of turning. Adjust if necessary. Should be set to some value greater than time to make a full circle.
+          //          maxTime = micros();
+          //          Serial.println("SETTING NEW MAX");
+          //          delay(1000);
+          magRiseFound = false;
+          maxMag = tarMag;
+          turnTime = 0;
+        }
+
+        searchTime = 0;
+        turnRight();
       }
-      //      }
       break;
 
     case FINISHED:
@@ -261,7 +289,7 @@ void loop() {
       break;
   }
 
-  fftSample();
+  //    fftSample();
 
   /* Test code for displaying raw FFT data */
   //      for (int i = 1000; i < 3000; i += 1000) {
@@ -293,7 +321,7 @@ void loop() {
 }
 
 void startButtonISR() {
-  if ((millis() - lastButtonPress) > 100) {  // Prevent button bounce
+  if ((millis() - lastButtonPress) > 300) {  // Prevent button bounce
     lastButtonPress = millis();
     if (state == IDLING) {
       started = true;
@@ -323,9 +351,42 @@ void toSearching(int tar) {
   while (millis() < (startTime + 1000)) {
     fftSample();
   }
-  turnRight();
   maxMag = 0;
   //  Serial.println("In transition");
   state = SEARCHING;
+  turnRight();
+  searchTime = 0;
+  turnTime = 0;
 }
+
+unsigned int ultraSonic(void) {
+  //  digitalWrite(TRIG_PIN, LOW);
+  //  delayMicroseconds(2);
+
+  unsigned long duration = 0;
+  unsigned int distance = 400;
+
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+  duration = pulseIn(ECHO_PIN, HIGH, 40000);
+
+  // Calculating the distance
+  distance = (duration * 0.034) / 2;
+
+  // Prints the distance on the Serial Monitor
+  Serial.print("Time: ");
+  Serial.print(millis());
+  Serial.print(" Distance: ");
+  Serial.println(distance);
+
+  //  if (millis() > 2500 && distance <= 15) {
+  //    digitalWrite(INT_PIN, LOW);
+  //  }
+
+  return distance;
+}
+
 
