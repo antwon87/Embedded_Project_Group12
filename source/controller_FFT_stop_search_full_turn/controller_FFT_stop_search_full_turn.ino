@@ -236,9 +236,9 @@ void loop() {
         }
 
         if (tarMag > (maxMag * 1.1)) {  // max * 1.1 is to account for FFT output fluctuation. Needs to be tuned/replaced.
-          if (maxMag != 0) {
-            magRiseFound = true;
-          }
+          //          if (maxMag != 0) {
+          //            magRiseFound = true;
+          //          }
           maxMag = tarMag;
           Serial.println();
           Serial.print("MAXMAG = ");
@@ -246,11 +246,28 @@ void loop() {
           Serial.println();
           //          maxTime = micros();
           turnTime = 0;
-        } else if (magRiseFound && tarMag < (maxMag * 0.7)) {  // Turned past beacon. max * 0.9 is to account for FFT output fluctuation. Needs to be tuned/replaced.
-          turnLeft(turnTime);  // May need to add an offset if moving average filter is too slow
-          //          maxTime = 0;
-          turnTime = 0;
-          magRiseFound = false;
+        }
+        //        else if (magRiseFound && tarMag < (maxMag * 0.7)) {  // Turned past beacon. max * 0.9 is to account for FFT output fluctuation. Needs to be tuned/replaced.
+        //          turnLeft(turnTime);  // May need to add an offset if moving average filter is too slow
+        //          //          maxTime = 0;
+        //          turnTime = 0;
+        //          magRiseFound = false;
+        //          searchTime = 0;
+        //          while (searchTime < 600000) {
+        //            fftSample();
+        //          }
+        //          if (tarMag > maxMag * 0.7) {
+        //            maxMag = tarMag;  // For accurate detection of moving away from beacon in FORWARD state.
+        //            state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
+        //            break;
+        //          }
+        //
+        //        } else
+        if (turnTime > BASE_TURN_MICROS * 11) {  // This assumes time to turn a full circle is 11 seconds of turning. Adjust if necessary. Should be set to some value greater than time to make a full circle.
+          //          maxTime = micros();
+          //          Serial.println("SETTING NEW MAX");
+          //          delay(1000);
+          turnLeft(turnTime);
           searchTime = 0;
           while (searchTime < 600000) {
             fftSample();
@@ -259,18 +276,12 @@ void loop() {
             maxMag = tarMag;  // For accurate detection of moving away from beacon in FORWARD state.
             state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
             break;
+          } else {
+            turnTime = 0;
           }
-//          else {
-//            toSearching(target);
-//            break;
-//          }
-        } else if (turnTime > BASE_TURN_MICROS * 11) {  // This assumes time to turn a full circle is 11 seconds of turning. Adjust if necessary. Should be set to some value greater than time to make a full circle.
-          //          maxTime = micros();
-          //          Serial.println("SETTING NEW MAX");
-          //          delay(1000);
-          magRiseFound = false;
-          maxMag = tarMag;
-          turnTime = 0;
+          //          magRiseFound = false;
+          //          maxMag = tarMag;
+          //          turnTime = 0;
         }
 
         searchTime = 0;
