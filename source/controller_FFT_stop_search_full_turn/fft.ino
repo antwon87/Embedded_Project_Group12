@@ -17,9 +17,9 @@ void fftSample(void) {
   // AVG_NUMBER point moving average for all frequencies of interest
   for (int i = 0; i < 10; ++i) {
     reading =
-      vReal[freqToIndex((i + (F1 / 1000)) * 1000) - 1] +
-      vReal[freqToIndex((i + (F1 / 1000)) * 1000) + 1] +
-      vReal[freqToIndex((i + (F1 / 1000)) * 1000)];
+      vReal[freqToIndex((i + (F1 / 500)) * 500) - 1] +
+      vReal[freqToIndex((i + (F1 / 500)) * 500) + 1] +
+      vReal[freqToIndex((i + (F1 / 500)) * 500)];
 //    reading = reading * 10;
     avgSum[i] -= avgHistory[i][avgPos[i]];
     avgSum[i] += reading;
