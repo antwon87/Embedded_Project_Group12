@@ -251,12 +251,14 @@ void loop() {
         if (turnTime > BASE_TURN_MICROS * 45) {
           if (maxMag = 0) {  // completely lost target frequency. Check for any frequency.
             target = F1;
-            if (newFreqCheck())
+            if (newFreqCheck()) {
               toSearching(target);
+              break;
+            }
+          } else {
+            toSearching(target);
             break;
           }
-          toSearching(target);
-          break;
         }
 
         searchTime = 0;
