@@ -168,7 +168,7 @@ void loop() {
       //      while (!started);
       if (started)
         toSearching(target);
-            fftSample();  // For testing. Could remove for final.
+      fftSample();  // For testing. Could remove for final.
       //            distance = ultraSonic();  // For testing. Remove for final.
       //            goForward();  // testing the noise of the wheels going forward
       break;
@@ -250,9 +250,9 @@ void loop() {
         // If searching for a very long time, start the search over.
         if (turnTime > BASE_TURN_MICROS * 45) {
           if (maxMag = 0) {  // completely lost target frequency. Check for any frequency.
-            target = 0;
-            newFreqCheck();
-            toSearching(target);
+            target = F1;
+            if (newFreqCheck())
+              toSearching(target);
             break;
           }
           toSearching(target);
@@ -354,13 +354,13 @@ void toSearching(void) {
   state = SEARCHING;
   gotLost = true;
   searchDirection = LEFT;
-//  if (searchDirection == RIGHT) {
-//    searchDirection = LEFT;
-//    turnLeft();
-//  } else {
-//    searchDirection = RIGHT;
-//    turnRight();
-//  }
+  //  if (searchDirection == RIGHT) {
+  //    searchDirection = LEFT;
+  //    turnLeft();
+  //  } else {
+  //    searchDirection = RIGHT;
+  //    turnRight();
+  //  }
   searchTime = 0;
   turnTime = 0;
 }
