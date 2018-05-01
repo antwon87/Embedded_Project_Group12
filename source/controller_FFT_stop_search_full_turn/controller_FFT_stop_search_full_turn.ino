@@ -122,6 +122,7 @@ uint16_t leftTurnSpeed = LEFT_TURN_SPEED_BASE;
 elapsedMillis forwardTime = 0;
 elapsedMicros searchTime = 0;
 unsigned long turnTime = 0;
+unsigned int distance = 400;
 
 void setup() {
   Serial.begin(115200);
@@ -162,15 +163,13 @@ void loop() {
   //  Serial.print("state = ");
   //  Serial.println(state);
 
-  unsigned int distance = 400;
-
   switch (state) {
     case IDLING:
       //      while (!started);
       if (started)
         toSearching(target);
-//      fftSample();  // For testing. Could remove for final.
-//            distance = ultraSonic();  // For testing. Remove for final.
+            fftSample();  // For testing. Could remove for final.
+      //            distance = ultraSonic();  // For testing. Remove for final.
       //            goForward();  // testing the noise of the wheels going forward
       break;
     case FORWARD:  // Will need to be rewritten to account for buzzers only producing sound 1/4 of the time
@@ -197,7 +196,7 @@ void loop() {
         //       Check if car is moving away from beacon
         if (tarMag > maxMag) {
           maxMag = tarMag;
-        } else if (tarMag < maxMag * 0.7) {  // 0.5 chosen as an arbitrary threshold. Should be tuned.
+        } else if (tarMag < maxMag * 0.7) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
           //          Serial.println("GONE SEARCHING");  // Test code to see if this event has occurred
           //          delay(2000);
           toSearching();
@@ -209,16 +208,16 @@ void loop() {
       }
 
       // Draft of code for using distance sensor
-            distance = ultraSonic();  // If there is a function to call, do so
-            if (distance > 0 && distance < 10) {
-              if (target == F10 && tarMag > 500) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
-                delay(3000);  // Tune delay to time it takes to move forward 10cm
-                state = FINISHED;
-                break;
-              } else {  // Approaching another beacon. Stop, turn right a bit, go forward, then search for the target direction again.
-                evasiveManeuvers();
-              }
-            }
+      distance = ultraSonic();  // If there is a function to call, do so
+      if (distance > 0 && distance < 20) {
+        if (target == F10 && tarMag > 500) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
+          delay(3000);  // Tune delay to time it takes to move forward 10cm
+          state = FINISHED;
+          break;
+        } else {  // Approaching another beacon. Stop, turn right a bit, go forward, then search for the target direction again.
+          evasiveManeuvers();
+        }
+      }
 
       break;
 
@@ -243,8 +242,20 @@ void loop() {
           Serial.println(maxMag);
           Serial.println();
         }
-        if ((turnTime > BASE_TURN_MICROS * 18 || gotLost) && tarMag > maxMag * 0.85) {  // This assumes a full circle is 18 turns. Adjust if necessary. Should be set to some value greater than time to make a full circle.
+        if ((turnTime > BASE_TURN_MICROS * 18 || gotLost) && (tarMag > maxMag * 0.85) && (maxMag != 0)) {  // This assumes a full circle is 18 turns. Adjust if necessary. Should be set to some value greater than time to make a full circle.
           state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
+          break;
+        }
+
+        // If searching for a very long time, start the search over.
+        if (turnTime > BASE_TURN_MICROS * 45) {
+          if (maxMag = 0) {  // completely lost target frequency. Check for any frequency.
+            target = 0;
+            newFreqCheck();
+            toSearching(target);
+            break;
+          }
+          toSearching(target);
           break;
         }
 
@@ -342,13 +353,14 @@ void toSearching(void) {
   }
   state = SEARCHING;
   gotLost = true;
-  if (searchDirection == RIGHT) {
-    searchDirection = LEFT;
-    turnLeft();
-  } else {
-    searchDirection = RIGHT;
-    turnRight();
-  }
+  searchDirection = LEFT;
+//  if (searchDirection == RIGHT) {
+//    searchDirection = LEFT;
+//    turnLeft();
+//  } else {
+//    searchDirection = RIGHT;
+//    turnRight();
+//  }
   searchTime = 0;
   turnTime = 0;
 }

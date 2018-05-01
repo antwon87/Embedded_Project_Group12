@@ -92,7 +92,7 @@ void evasiveManeuvers(void) {
   unsigned long time = 0;
   stopCar();
   delay(100);  // might need small delay for movement change
-  turnRight(BASE_TURN_MICROS * 3);  // Need to tune turn time.
+  turnRight(BASE_TURN_MICROS * 2.2);  // Need to tune turn time.
   //             while (distance < 15) {  // This while won't work. Sensor stops seeing beacon before car has turned enough to avoid it.
   //               // Call distance check function if necessary
   //             }
@@ -100,9 +100,9 @@ void evasiveManeuvers(void) {
   delay(100);  // might need small delay for movement change
   time = micros();
   goForward();
-  while (micros() < time + (BASE_FORWARD_MICROS * 1.5)) {
+  while (micros() < time + (BASE_FORWARD_MICROS * 2.7)) {
     distance = ultraSonic();
-    if (distance > 0 && distance < 10) {
+    if (distance > 0 && distance < 20) {
       evasiveManeuvers();
       return;
     }
