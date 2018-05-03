@@ -1,6 +1,7 @@
 void fftSample(void) {
   double reading = 0;
 
+  cli();
   for (int i = 0; i < samples; i++) {
     microseconds = micros();    //Overflows after around 70 minutes!
 
@@ -10,6 +11,7 @@ void fftSample(void) {
       //empty loop
     }
   }
+  sei();
   FFT.Windowing(vReal, samples, FFT_WIN_TYP_HAMMING, FFT_FORWARD);  /* Weigh data */
   FFT.Compute(vReal, vImag, samples, FFT_FORWARD); /* Compute FFT */
   FFT.ComplexToMagnitude(vReal, vImag, samples); /* Compute magnitudes */

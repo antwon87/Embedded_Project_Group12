@@ -108,7 +108,7 @@ int target;
 int tarFFTindex;
 double maxMag;
 //float maxTime;
-const int targetThreshold[10] =    {40, 40, 40, 40, 40, 65, 40, 40, 35, 35};  // Needs adjustment
+const int targetThreshold[10] =    {20, 20, 20, 20, 20, 20, 20, 20, 20, 18};  // Needs adjustment
 const int initialThreshold[10] = {100, 100, 100, 100, 100, 100, 80, 80, 75, 75};  // Needs adjustment
 bool magRiseFound;
 volatile StateType state;
@@ -132,7 +132,7 @@ void setup() {
   pinMode(CALIBRATION_SWITCH_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(START_BUT_PIN), startButtonISR, FALLING);
   digitalWrite(LED_PIN, LOW);
-  target = F1;
+  target = F10;
   tarFFTindex = freqToIndex(target);
 
   if (digitalRead(CALIBRATION_SWITCH_PIN) == 0) {
@@ -210,8 +210,8 @@ void loop() {
       // Draft of code for using distance sensor
       distance = ultraSonic();  // If there is a function to call, do so
       if (distance > 0 && distance < 20) {
-        if (target == F10 && tarMag > 500) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
-          delay(3000);  // Tune delay to time it takes to move forward 10cm
+        if (target == F10 && tarMag > 150) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
+          delay(2000);  // Tune delay to time it takes to move forward 10cm
           state = FINISHED;
           break;
         } else {  // Approaching another beacon. Stop, turn right a bit, go forward, then search for the target direction again.
@@ -242,7 +242,7 @@ void loop() {
           Serial.println(maxMag);
           Serial.println();
         }
-        if ((turnTime > BASE_TURN_MICROS * 18 || gotLost) && (tarMag > maxMag * 0.85) && (maxMag != 0)) {  // This assumes a full circle is 18 turns. Adjust if necessary. Should be set to some value greater than time to make a full circle.
+        if ((turnTime > BASE_TURN_MICROS * 21 || gotLost) && (tarMag > maxMag * 0.75) && (maxMag != 0)) {  // This assumes a full circle is 18 turns. Adjust if necessary. Should be set to some value greater than time to make a full circle.
           state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
           break;
         }
