@@ -102,7 +102,7 @@ void loop() {
 
     if (vReal[tarIndex] > 500) {  // 500 chosen arbitrarily. Needs testing.
       validSamples++;
-      tarMag += vReal[tarIndex - 1] + vReal[tarIndex] vReal[tarIndex + 1];
+      tarMag += vReal[tarIndex - 1] + vReal[tarIndex] + vReal[tarIndex + 1];
     }
   }
   // Take an average of 10 samples for the target frequency

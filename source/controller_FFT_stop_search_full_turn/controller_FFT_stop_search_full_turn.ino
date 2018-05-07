@@ -89,7 +89,7 @@ unsigned long microseconds;
 */
 double vReal[samples];
 double vImag[samples];
-#define AVG_NUMBER 20
+#define AVG_NUMBER 16
 double avgHistory[10][AVG_NUMBER] = {0};
 double avgSum[10] = {0};
 int avgPos[10] = {0};
@@ -108,8 +108,8 @@ int target;
 int tarFFTindex;
 double maxMag;
 //float maxTime;
-const int targetThreshold[10] =    {20, 20, 20, 20, 20, 20, 20, 20, 20, 18};  // Needs adjustment
-const int initialThreshold[10] = {100, 100, 100, 100, 100, 100, 80, 80, 75, 75};  // Needs adjustment
+const int targetThreshold[10] =    {25, 25, 25, 25, 25, 25, 25, 25, 25, 23};  // Needs adjustment
+const int initialThreshold[10] = {80, 80, 80, 80, 80, 80, 75, 75, 60, 50};  // Needs adjustment
 bool magRiseFound;
 volatile StateType state;
 volatile bool started;
@@ -132,7 +132,7 @@ void setup() {
   pinMode(CALIBRATION_SWITCH_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(START_BUT_PIN), startButtonISR, FALLING);
   digitalWrite(LED_PIN, LOW);
-  target = F10;
+  target = F1;
   tarFFTindex = freqToIndex(target);
 
   if (digitalRead(CALIBRATION_SWITCH_PIN) == 0) {
@@ -182,11 +182,22 @@ void loop() {
         stopCar();
         delay(100);  // Wait a bit just to ensure the wheels are stopped before sampling
         forwardTime = 0;
-        // Sample for 500ms while stopped
-        while (forwardTime < 500) {
+        // Sample for 600ms while stopped
+        double maxSample = 0;
+        while (forwardTime < 600) {
           fftSample();
+          if (magnitudes[(target - F1) / (F2 - F1)] > maxSample) {
+            maxSample = magnitudes[(target - F1) / (F2 - F1)];
+          }
         }
         if (newFreqCheck()) {
+          /* For testing random long stop when going forward */
+          stopCar();
+          digitalWrite(LED_PIN, HIGH);
+          delay(3000);
+          digitalWrite(LED_PIN, LOW);
+          turnRight();
+          /* End test section */
           break;
         }
         /*else {
@@ -196,7 +207,7 @@ void loop() {
         //       Check if car is moving away from beacon
         if (tarMag > maxMag) {
           maxMag = tarMag;
-        } else if (tarMag < maxMag * 0.7) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
+        } else if (tarMag < maxMag * 0.7 || maxSample < targetThreshold[(target - F1) / (F2 - F1)]) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
           //          Serial.println("GONE SEARCHING");  // Test code to see if this event has occurred
           //          delay(2000);
           toSearching();
@@ -210,12 +221,21 @@ void loop() {
       // Draft of code for using distance sensor
       distance = ultraSonic();  // If there is a function to call, do so
       if (distance > 0 && distance < 20) {
-        if (target == F10 && tarMag > 150) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
-          delay(2000);  // Tune delay to time it takes to move forward 10cm
-          state = FINISHED;
-          break;
-        } else {  // Approaching another beacon. Stop, turn right a bit, go forward, then search for the target direction again.
-          evasiveManeuvers();
+        if (target == F10) {
+          bool lastIsLoud = true;
+          for (int i = 0; i < 9; ++i) {
+            if (tarMag < magnitudes[i]) {
+              lastIsLoud = false;
+              break;
+            }
+          }
+          if (lastIsLoud) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
+            delay(2000);  // Tune delay to time it takes to move forward 10cm
+            state = FINISHED;
+            break;
+          } else {  // Approaching another beacon. Stop, turn right a bit, go forward, then search for the target direction again.
+            evasiveManeuvers();
+          }
         }
       }
 
@@ -232,6 +252,13 @@ void loop() {
           fftSample();
         }
         if (newFreqCheck()) {
+          /* For testing random long stop when going forward */
+          stopCar();
+          digitalWrite(LED_PIN, HIGH);
+          delay(1000);
+          digitalWrite(LED_PIN, LOW);
+          turnRight();
+          /* End test section */
           break;
         }
 
@@ -249,7 +276,7 @@ void loop() {
 
         // If searching for a very long time, start the search over.
         if (turnTime > BASE_TURN_MICROS * 45) {
-          if (maxMag = 0) {  // completely lost target frequency. Check for any frequency.
+          if (maxMag == 0) {  // completely lost target frequency. Check for any frequency.
             target = F1;
             if (newFreqCheck()) {
               toSearching(target);

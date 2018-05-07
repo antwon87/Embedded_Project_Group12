@@ -47,6 +47,8 @@ void fftSample(void) {
   }
 
   /* Test code for displaying moving average output */
+//  Serial.print("Time = ");
+//  Serial.println(micros());
   Serial.print("Target = ");
   Serial.print(target);
   Serial.print("   ");
@@ -54,7 +56,10 @@ void fftSample(void) {
     Serial.print(magnitudes[i], 3);
     Serial.print("    ");
   }
-  Serial.println(tarMag);
+  Serial.print("tarMag = ");
+  Serial.print(tarMag);
+  Serial.print(", maxMag = ");
+  Serial.println(maxMag);
 }
 
 int freqToIndex(int f) {
