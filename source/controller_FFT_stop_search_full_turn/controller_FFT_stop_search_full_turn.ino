@@ -57,22 +57,38 @@
 #define TRIG_PIN 8
 #define ECHO_PIN 9
 
-#define FAST_SPEEDS
-#ifdef FAST_SPEEDS
-#define STRAIGHT_SPEED_LEFT 4240
-#define STRAIGHT_BASE_RIGHT 5493
+//#define FAST_SPEEDS
+//#define FIXED_WHEEL
+
+//#ifdef FAST_SPEEDS
+#define STRAIGHT_SPEED_LEFT 4140 //4240
+#define STRAIGHT_BASE_RIGHT 5593 //5493
+#define BASE_FORWARD_MICROS 1300000 //1500000
+
+#ifdef FIXED_WHEEL
+#define RIGHT_TURN_SPEED 4000
+#define LEFT_TURN_SPEED_BASE 5748
+#define BASE_TURN_MICROS 210000
+#define NUM_SEARCH_STOPS 20
+#define NUM_SEARCH_STOPS_MAX 45
+#else
 #define RIGHT_TURN_SPEED 4290
 #define LEFT_TURN_SPEED_BASE 5458
-#define BASE_FORWARD_MICROS 1500000
 #define BASE_TURN_MICROS 264000
-#else
-#define STRAIGHT_SPEED_LEFT 4440  // 4440
-#define STRAIGHT_BASE_RIGHT 5280  // 5404
-#define RIGHT_TURN_SPEED 4490  // 4490
-#define LEFT_TURN_SPEED_BASE 5325
-#define BASE_FORWARD_MICROS 4000000
-#define BASE_TURN_MICROS 600000
+#define NUM_SEARCH_STOPS 20
+#define NUM_SEARCH_STOPS_MAX 44
 #endif
+
+//#else
+//#define STRAIGHT_SPEED_LEFT 4440  // 4440
+//#define STRAIGHT_BASE_RIGHT 5280  // 5404
+//#define RIGHT_TURN_SPEED 4490  // 4490
+//#define LEFT_TURN_SPEED_BASE 5325
+//#define BASE_FORWARD_MICROS 4000000
+//#define BASE_TURN_MICROS 600000
+//#endif
+
+#define LISTEN_TIME_MILLIS 1250
 
 /*
   These values can be changed in order to evaluate the functions
@@ -89,7 +105,7 @@ unsigned long microseconds;
 */
 double vReal[samples];
 double vImag[samples];
-#define AVG_NUMBER 16
+#define AVG_NUMBER 15
 double avgHistory[10][AVG_NUMBER] = {0};
 double avgSum[10] = {0};
 int avgPos[10] = {0};
@@ -98,6 +114,7 @@ double tarAvgSum = 0;
 double tarAvgHistory[AVG_NUMBER] = {0};
 int tarAvgPos = 0;
 double tarMag = 0;
+double maxSample = 0;
 uint8_t searchDirection = RIGHT;
 bool gotLost = false;
 
@@ -108,8 +125,8 @@ int target;
 int tarFFTindex;
 double maxMag;
 //float maxTime;
-const int targetThreshold[10] =    {25, 25, 25, 25, 25, 25, 25, 25, 25, 23};  // Needs adjustment
-const int initialThreshold[10] = {80, 80, 80, 80, 80, 80, 75, 75, 60, 50};  // Needs adjustment
+const int targetThreshold[10] =    {30, 50, 50, 50, 50, 50, 50, 50, 50, 40};  // Needs adjustment
+const int initialThreshold[10] = {100, 100, 100, 100, 100, 100, 90, 90, 70, 50};  // Needs adjustment
 bool magRiseFound;
 volatile StateType state;
 volatile bool started;
@@ -183,13 +200,18 @@ void loop() {
         delay(100);  // Wait a bit just to ensure the wheels are stopped before sampling
         forwardTime = 0;
         // Sample for 600ms while stopped
-        double maxSample = 0;
-        while (forwardTime < 600) {
+        Serial.println();
+        maxSample = 0;
+        while (forwardTime < LISTEN_TIME_MILLIS) {
           fftSample();
           if (magnitudes[(target - F1) / (F2 - F1)] > maxSample) {
             maxSample = magnitudes[(target - F1) / (F2 - F1)];
           }
         }
+        tarMag = maxSample;
+        Serial.println();
+        Serial.print("tarMag forward = ");
+        Serial.println(tarMag);
         if (newFreqCheck()) {
           /* For testing random long stop when going forward */
           stopCar();
@@ -207,7 +229,7 @@ void loop() {
         //       Check if car is moving away from beacon
         if (tarMag > maxMag) {
           maxMag = tarMag;
-        } else if (tarMag < maxMag * 0.7 || maxSample < targetThreshold[(target - F1) / (F2 - F1)]) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
+        } else if (tarMag < maxMag * 0.7 || tarMag < targetThreshold[(target - F1) / (F2 - F1)]) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
           //          Serial.println("GONE SEARCHING");  // Test code to see if this event has occurred
           //          delay(2000);
           toSearching();
@@ -229,13 +251,13 @@ void loop() {
               break;
             }
           }
-          if (lastIsLoud) {  // Need a real value. 500 tentative. If approaching last beacon, keep going a bit, then be done!
+          if (lastIsLoud) {  // If approaching last beacon, keep going a bit, then be done!
             delay(2000);  // Tune delay to time it takes to move forward 10cm
             state = FINISHED;
             break;
-          } else {  // Approaching another beacon. Stop, turn right a bit, go forward, then search for the target direction again.
-            evasiveManeuvers();
           }
+        } else {  // Approaching another beacon. Stop, turn right a bit, go forward, then search for the target direction again.
+          evasiveManeuvers();
         }
       }
 
@@ -248,9 +270,18 @@ void loop() {
         delay(100);  // Wait a bit just to ensure the wheels are stopped before sampling
         searchTime = 0;
         // Sample for 600ms while stopped
-        while (searchTime < 600000) {
+        Serial.println();
+        maxSample = 0;
+        while (searchTime < LISTEN_TIME_MILLIS * 1000) {
           fftSample();
+          if (magnitudes[(target - F1) / (F2 - F1)] > maxSample) {
+            maxSample = magnitudes[(target - F1) / (F2 - F1)];
+          }
         }
+        tarMag = maxSample;
+        Serial.println();
+        Serial.print("tarMag searching = ");
+        Serial.println(tarMag);
         if (newFreqCheck()) {
           /* For testing random long stop when going forward */
           stopCar();
@@ -269,14 +300,16 @@ void loop() {
           Serial.println(maxMag);
           Serial.println();
         }
-        if ((turnTime > BASE_TURN_MICROS * 21 || gotLost) && (tarMag > maxMag * 0.75) && (maxMag != 0)) {  // This assumes a full circle is 18 turns. Adjust if necessary. Should be set to some value greater than time to make a full circle.
+        if ((turnTime > BASE_TURN_MICROS * NUM_SEARCH_STOPS || gotLost) && (tarMag > maxMag * 0.75) && (maxMag > targetThreshold[(target - F1) / (F2 - F1)])) {  // This assumes a full circle is 18 turns. Adjust if necessary. Should be set to some value greater than time to make a full circle.
           state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
+          maxMag = tarMag;
+          forwardTime = 0;
           break;
         }
 
         // If searching for a very long time, start the search over.
-        if (turnTime > BASE_TURN_MICROS * 45) {
-          if (maxMag == 0) {  // completely lost target frequency. Check for any frequency.
+        if (turnTime > BASE_TURN_MICROS * NUM_SEARCH_STOPS_MAX) {
+          if (maxMag < initialThreshold[(target - F1) / (F2 - F1)]) {  // completely lost target frequency. Check for any frequency.
             target = F1;
             if (newFreqCheck()) {
               toSearching(target);
@@ -390,6 +423,7 @@ void toSearching(void) {
   //    searchDirection = RIGHT;
   //    turnRight();
   //  }
+  turnLeft();
   searchTime = 0;
   turnTime = 0;
 }

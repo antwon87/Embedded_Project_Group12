@@ -32,19 +32,19 @@ void fftSample(void) {
 
   // Moving average for the target. New values only added to average if above threshold.
   // This is meant to handle the buzzers only being on half the time. When the buzzer is
-  // off, the value will simply be ignored and the average won't change.
-  if ((vReal[tarFFTindex - 1] + vReal[tarFFTindex + 1] + vReal[tarFFTindex]) > targetThreshold[(target / 1000) - (F1 / 1000)]) {
-    tarAvgSum -= tarAvgHistory[tarAvgPos];
-    reading =
-      vReal[tarFFTindex - 1] +
-      vReal[tarFFTindex + 1] +
-      vReal[tarFFTindex];
-//    reading = reading * 10;
-    tarAvgSum += reading;
-    tarAvgHistory[tarAvgPos] = reading;
-    tarAvgPos = (tarAvgPos == AVG_NUMBER - 1) ? 0 : tarAvgPos + 1;
-    tarMag = tarAvgSum / AVG_NUMBER;
-  }
+  // off, the value will simply be ignored and the average won't change.    
+//  reading =
+//      vReal[tarFFTindex - 1] +
+//      vReal[tarFFTindex + 1] +
+//      vReal[tarFFTindex];
+////    reading = reading * 10;
+//  if (reading > targetThreshold[(target - F1) / (F2 - F1)]) {
+//    tarAvgSum -= tarAvgHistory[tarAvgPos];
+//    tarAvgSum += reading;
+//    tarAvgHistory[tarAvgPos] = reading;
+//    tarAvgPos = (tarAvgPos == AVG_NUMBER - 1) ? 0 : tarAvgPos + 1;
+//    tarMag = tarAvgSum / AVG_NUMBER;
+//  }
 
   /* Test code for displaying moving average output */
 //  Serial.print("Time = ");
@@ -56,8 +56,8 @@ void fftSample(void) {
     Serial.print(magnitudes[i], 3);
     Serial.print("    ");
   }
-  Serial.print("tarMag = ");
-  Serial.print(tarMag);
+//  Serial.print("tarMag = ");
+//  Serial.print(tarMag);
   Serial.print(", maxMag = ");
   Serial.println(maxMag);
 }
