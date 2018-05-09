@@ -125,8 +125,8 @@ int target;
 int tarFFTindex;
 double maxMag;
 //float maxTime;
-const int targetThreshold[10] =    {30, 50, 50, 50, 50, 50, 50, 50, 50, 40};  // Needs adjustment
-const int initialThreshold[10] = {100, 100, 100, 100, 100, 100, 90, 90, 70, 50};  // Needs adjustment
+const int targetThreshold[10] =    {30, 30, 30, 30, 30, 30, 30, 30, 40, 40};  // Needs adjustment
+const int initialThreshold[10] = {100, 100, 100, 100, 100, 100, 100, 70, 60, 40};  // Needs adjustment
 bool magRiseFound;
 volatile StateType state;
 volatile bool started;
