@@ -54,25 +54,25 @@ void setup() {
   Wire.write(0x1D); // Set the Register
   Wire.endTransmission();
 
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(START_BUT_PIN, INPUT_PULLUP);
-  pinMode(PWM_LEFT_PIN, OUTPUT);
-  pinMode(PWM_RIGHT_PIN, OUTPUT);
-  attachInterrupt(digitalPinToInterrupt(START_BUT_PIN), startButtonISR, FALLING);
+//  pinMode(LED_PIN, OUTPUT);
+//  pinMode(START_BUT_PIN, INPUT_PULLUP);
+//  pinMode(PWM_LEFT_PIN, OUTPUT);
+//  pinMode(PWM_RIGHT_PIN, OUTPUT);
+//  attachInterrupt(digitalPinToInterrupt(START_BUT_PIN), startButtonISR, FALLING);
   
-  analogWriteFrequency(PWM_LEFT_PIN, 50);  // (pin, frequency in Hz)
-  analogWriteFrequency(PWM_RIGHT_PIN, 50);  // (pin, frequency in Hz)
-  analogWriteResolution(16);          // (# of bits)
+//  analogWriteFrequency(PWM_LEFT_PIN, 50);  // (pin, frequency in Hz)
+//  analogWriteFrequency(PWM_RIGHT_PIN, 50);  // (pin, frequency in Hz)
+//  analogWriteResolution(16);          // (# of bits)
 
-  pinMode(CALIBRATION_PIN, INPUT);
-  pinMode(CALIBRATION_SWITCH_PIN, INPUT);
+//  pinMode(CALIBRATION_PIN, INPUT);
+//  pinMode(CALIBRATION_SWITCH_PIN, INPUT);
 
-  started = false;
-  if (digitalRead(CALIBRATION_SWITCH_PIN) == 0) {
-    state = IDLING;
-  } else {
-    state = CALIBRATION_STRAIGHT;
-  }
+//  started = false;
+//  if (digitalRead(CALIBRATION_SWITCH_PIN) == 0) {
+//    state = IDLING;
+//  } else {
+//    state = CALIBRATION_STRAIGHT;
+//  }
 
 
   
@@ -123,7 +123,7 @@ void loop() {
 }
 
 float slopeCheck() {
-  int x, y, z; //triple axis data
+  int16_t x, y, z; //triple axis data
   float slope;
   //Tell the HMC what regist to begin writing data into
 
@@ -135,20 +135,20 @@ float slopeCheck() {
   //Read the data.. 2 bytes for each axis.. 6 total bytes
   Wire.requestFrom(addr, 6);
   if (6 <= Wire.available()) {
-    x = Wire.read(); //MSB  x
-    x |= Wire.read() << 8; //LSB  x
-    z = Wire.read(); //MSB  z
-    z |= Wire.read() << 8; //LSB z
-    y = Wire.read(); //MSB y
-    y |= Wire.read() << 8; //LSB y
+    x = Wire.read(); //LSB  x
+    x |= Wire.read() << 8; //MSB  x
+    y = Wire.read(); //LSB y
+    y |= Wire.read() << 8; //MSB y
+    z = Wire.read(); //LSB  z
+    z |= Wire.read() << 8; //MSB z
   }
 
-  if (x < 1000) {
-    x += 65536;
-  }
-  if (y < 1000) {
-    x += 65536;
-  }
+//  if (x < 1000) {
+//    x += 65536;
+//  }
+//  if (y < 1000) {
+//    x += 65536;
+//  }
 
   // Show Values
   Serial.print("X Value: ");
@@ -159,12 +159,12 @@ float slopeCheck() {
   Serial.println(z);
   Serial.println();
   
-  slope = atan2(x % 10000 , y % 10000);
-  Serial.print("x: ");
-  Serial.println((x % 10000));
-  Serial.print("y: ");
-  Serial.println(y % 10000);
-  Serial.println(slope);
+//  slope = atan2(x % 10000 , y % 10000);
+//  Serial.print("x: ");
+//  Serial.println((x % 10000));
+//  Serial.print("y: ");
+//  Serial.println(y % 10000);
+//  Serial.println(slope);
   delay(50);
   
   return slope;

@@ -88,12 +88,11 @@
 //#define BASE_TURN_MICROS 600000
 //#endif
 
-#define LISTEN_TIME_MILLIS 1250
-
 /*
   These values can be changed in order to evaluate the functions
 */
 #define CHANNEL A2
+#define LISTEN_TIME_MILLIS 1250
 const uint16_t samples = 256; //This value MUST ALWAYS be a power of 2
 const double samplingFrequency = 20000; //Hz
 unsigned int sampling_period_us;
@@ -160,7 +159,6 @@ void setup() {
 
   started = false;
   maxMag = 0;
-  //  maxTime = 0;
   magRiseFound = false;
   tarMag = 0;
 
@@ -177,29 +175,27 @@ void setup() {
 }
 
 void loop() {
-  //  Serial.print("state = ");
-  //  Serial.println(state);
 
   switch (state) {
     case IDLING:
-      //      while (!started);
       if (started)
         toSearching(target);
       fftSample();  // For testing. Could remove for final.
-      //            distance = ultraSonic();  // For testing. Remove for final.
+//                  distance = ultraSonic();  // For testing. Remove for final.
       //            goForward();  // testing the noise of the wheels going forward
       break;
-    case FORWARD:  // Will need to be rewritten to account for buzzers only producing sound 1/4 of the time
+    case FORWARD: 
       goForward();
 
       // Periodically check for new target
       if (forwardTime > BASE_FORWARD_MICROS / 1000) {
-        // Wheels generate significant noise, especially in the 14kHz range.
+        // Wheels generate significant noise.
         // So, we must stop before looking for new signals.
         stopCar();
         delay(100);  // Wait a bit just to ensure the wheels are stopped before sampling
         forwardTime = 0;
-        // Sample for 600ms while stopped
+        
+        // Sample while stopped. Record maximum sampled target value to use as new target magnitude.
         Serial.println();
         maxSample = 0;
         while (forwardTime < LISTEN_TIME_MILLIS) {
@@ -212,6 +208,8 @@ void loop() {
         Serial.println();
         Serial.print("tarMag forward = ");
         Serial.println(tarMag);
+
+        // Check to see if any new beacon was detected during sampling.
         if (newFreqCheck()) {
           /* For testing random long stop when going forward */
           stopCar();
@@ -222,28 +220,29 @@ void loop() {
           /* End test section */
           break;
         }
-        /*else {
-          state = FORWARD;
-          }*/
 
-        //       Check if car is moving away from beacon
+        //  Check if car is moving away from beacon. If so, re-orient.
         if (tarMag > maxMag) {
           maxMag = tarMag;
-        } else if (tarMag < maxMag * 0.7 || tarMag < targetThreshold[(target - F1) / (F2 - F1)]) {  // 0.7 chosen as an arbitrary threshold. Should be tuned.
+        } else if (tarMag < maxMag * 0.7 || tarMag < targetThreshold[(target - F1) / (F2 - F1)]) {  
           //          Serial.println("GONE SEARCHING");  // Test code to see if this event has occurred
           //          delay(2000);
           toSearching();
           break;
         }
-
+        
         forwardTime = 0;
         goForward();
       }
 
-      // Draft of code for using distance sensor
-      distance = ultraSonic();  // If there is a function to call, do so
+      // While moving forward, check to make sure car isn't too close to something.
+      distance = ultraSonic();  
       if (distance > 0 && distance < 20) {
-        if (target == F10) {
+        /* If the car is approaching something, but the last beacon is the current 
+         *  target and that beacon's magnitude is larger than all others, then proceed
+         *  forward enough to hit the beacon and move to the FINISHED state.
+         */
+        if (target == F10) {  
           bool lastIsLoud = true;
           for (int i = 0; i < 9; ++i) {
             if (tarMag < magnitudes[i]) {
@@ -252,7 +251,7 @@ void loop() {
             }
           }
           if (lastIsLoud) {  // If approaching last beacon, keep going a bit, then be done!
-            delay(2000);  // Tune delay to time it takes to move forward 10cm
+            delay(2000);  
             state = FINISHED;
             break;
           }
@@ -264,12 +263,13 @@ void loop() {
       break;
 
     case SEARCHING:  // Aim car at target beacon if searching
-      if (searchTime > BASE_TURN_MICROS) {  // Stop periodically to sample so wheel noise doesn't interfere
+      if (searchTime > BASE_TURN_MICROS) {  // Turn and then stop periodically to sample so wheel noise doesn't interfere
         turnTime += searchTime;
         stopCar();
         delay(100);  // Wait a bit just to ensure the wheels are stopped before sampling
         searchTime = 0;
-        // Sample for 600ms while stopped
+        
+        // Sample while stopped. Record maximum sampled target value to use as new target magnitude.
         Serial.println();
         maxSample = 0;
         while (searchTime < LISTEN_TIME_MILLIS * 1000) {
@@ -282,6 +282,8 @@ void loop() {
         Serial.println();
         Serial.print("tarMag searching = ");
         Serial.println(tarMag);
+
+        // Check to see if any new beacon was detected during sampling.
         if (newFreqCheck()) {
           /* For testing random long stop when going forward */
           stopCar();
@@ -293,15 +295,23 @@ void loop() {
           break;
         }
 
-        if (tarMag > (maxMag * 1.1)) {  // max * 1.1 is to account for FFT output fluctuation. Needs to be tuned/replaced.
+        // Update maximum recorded magnitude.
+        if (tarMag > (maxMag * 1.1)) {  // max * 1.1 is to account for FFT output fluctuation. 
           maxMag = tarMag;
           Serial.println();
           Serial.print("MAXMAG = ");
           Serial.println(maxMag);
           Serial.println();
         }
-        if ((turnTime > BASE_TURN_MICROS * NUM_SEARCH_STOPS || gotLost) && (tarMag > maxMag * 0.75) && (maxMag > targetThreshold[(target - F1) / (F2 - F1)])) {  // This assumes a full circle is 18 turns. Adjust if necessary. Should be set to some value greater than time to make a full circle.
-          state = FORWARD;  // Setting to FINISHED for search testing. Will want to set to FORWARD in final design.
+
+        /* If the car has made a full circle or previously gotten lost, and the target magnitude is 
+         *  comparable to the maximum recorded magnitude, and that maximum is above the threshold,
+         *  then go FORWARD.
+         */
+        if ((turnTime > BASE_TURN_MICROS * NUM_SEARCH_STOPS || gotLost) && 
+            (tarMag > maxMag * 0.75) && 
+            (maxMag > targetThreshold[(target - F1) / (F2 - F1)])) {  
+          state = FORWARD;  
           maxMag = tarMag;
           forwardTime = 0;
           break;
@@ -315,7 +325,7 @@ void loop() {
               toSearching(target);
               break;
             }
-          } else {
+          } else {  // If target is detectable, but the max was never found again, reset max and try again.
             toSearching(target);
             break;
           }
@@ -338,6 +348,9 @@ void loop() {
       break;
 
     case CALIBRATION_STRAIGHT:
+      /* Calibrate wheels to move straight, even though it doesn't really 
+       *  work due to the front caster wheel being really crappy.
+       */
       calibrate_straight();
       break;
 
@@ -354,6 +367,9 @@ void loop() {
   delay(40);
 }
 
+/* Start when the start button is pressed. Starting
+ *  state depends on the switch value.
+ */
 void startButtonISR() {
   if ((millis() - lastButtonPress) > 300) {  // Prevent button bounce
     lastButtonPress = millis();
@@ -383,16 +399,15 @@ void toSearching(int tar) {
     tarAvgHistory[i] = 0;
   }
 
-  // Sample for 1 second to populate moving average with current readings so there is no faulty rise detected
+  // Sample for 1 second to populate moving average with current readings.
   double startTime = millis();
   while (millis() < (startTime + 1000)) {
     fftSample();
   }
   maxMag = 0;
-  //  Serial.println("In transition");
   state = SEARCHING;
   gotLost = false;
-  searchDirection = RIGHT;
+  searchDirection = RIGHT;  // Turn right for normal search.
   turnRight();
   searchTime = 0;
   turnTime = 0;
@@ -401,28 +416,21 @@ void toSearching(int tar) {
 /* This version of toSearching gets called if the car loses a beacon
     it is tracking while moving forwards. After a search, the front wheel
     doesn't fully return to a straight position, making the car veer in the
-    direction of the search turn rather than going straight. This will alternate
-    the direction of the search and remove the necessity for making a full
-    circle when adjusting direction.
+    direction of the search turn rather than going straight. This function
+    will search to the left, since the car usually goes right instead of 
+    straight forward.
 */
 void toSearching(void) {
   stopCar();
 
-  // Sample for 1 second to populate moving average with current readings so there is no faulty rise detected
+  // Sample for 1 second to populate moving average with current readings.
   double startTime = millis();
   while (millis() < (startTime + 1000)) {
     fftSample();
   }
   state = SEARCHING;
-  gotLost = true;
+  gotLost = true;  // Indicates that target has previously been found, but getting off course.
   searchDirection = LEFT;
-  //  if (searchDirection == RIGHT) {
-  //    searchDirection = LEFT;
-  //    turnLeft();
-  //  } else {
-  //    searchDirection = RIGHT;
-  //    turnRight();
-  //  }
   turnLeft();
   searchTime = 0;
   turnTime = 0;
@@ -454,13 +462,15 @@ unsigned int ultraSonic(void) {
   Serial.print(" Distance: ");
   Serial.println(distance);
 
-  //  if (millis() > 2500 && distance <= 15) {
-  //    digitalWrite(INT_PIN, LOW);
-  //  }
-
   return distance;
 }
 
+
+/* Checks to see if any frequency further in the sequence is above
+ *  the minimum threshold. If so, sets the target to that frequency
+ *  and starts a search to find where the beacon is.
+ *  Returns true if a new frequency was found and false if not.
+ */
 bool newFreqCheck(void) {
   bool retVal = false;
   if (magnitudes[9] > initialThreshold[9] && target < F10) {

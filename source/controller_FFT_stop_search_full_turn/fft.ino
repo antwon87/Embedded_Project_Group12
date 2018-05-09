@@ -30,7 +30,7 @@ void fftSample(void) {
     magnitudes[i] = avgSum[i] / AVG_NUMBER;
   }
 
-  // Moving average for the target. New values only added to average if above threshold.
+  // DEPRECATED: Moving average for the target. New values only added to average if above threshold.
   // This is meant to handle the buzzers only being on half the time. When the buzzer is
   // off, the value will simply be ignored and the average won't change.    
 //  reading =
@@ -62,6 +62,9 @@ void fftSample(void) {
   Serial.println(maxMag);
 }
 
+/* Returns the index in the FFT output array which most closely 
+ *  corresponds to the given frequency.
+ */
 int freqToIndex(int f) {
   return round((f * samples) / samplingFrequency);
 }

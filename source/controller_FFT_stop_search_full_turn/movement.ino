@@ -75,15 +75,9 @@ void calibrate_turn(void) {
   Serial.println(leftTurnSpeed);
   Serial.println();
   turnLeft(1000000);
-//  analogWrite(PWM_LEFT_PIN, leftTurnSpeed);
-//  analogWrite(PWM_RIGHT_PIN, leftTurnSpeed);
-//  delay(1000);
   stopCar();
   delay(500);
   turnRight(1000000);
-//  analogWrite(PWM_LEFT_PIN, RIGHT_TURN_SPEED);
-//  analogWrite(PWM_RIGHT_PIN, RIGHT_TURN_SPEED);
-//  delay(1000);
   stopCar();
   delay(3000);
 }
@@ -92,24 +86,21 @@ void evasiveManeuvers(void) {
   unsigned long time = 0;
   stopCar();
   delay(100);  // might need small delay for movement change
-  turnRight(BASE_TURN_MICROS * 2.2);  // Need to tune turn time.
-  //             while (distance < 15) {  // This while won't work. Sensor stops seeing beacon before car has turned enough to avoid it.
-  //               // Call distance check function if necessary
-  //             }
+  turnRight(BASE_TURN_MICROS * 2.2);  // Turn right to avoid obstruction
   stopCar();
   delay(100);  // might need small delay for movement change
   time = micros();
-  goForward();
+  
+  goForward();  // Move forward for some time to get away from obstruction
   while (micros() < time + (BASE_FORWARD_MICROS * 2.7)) {
     distance = ultraSonic();
-    if (distance > 0 && distance < 20) {
+    if (distance > 0 && distance < 20) {  // Make sure to dodge any obstruction in the new path.
       evasiveManeuvers();
       return;
     }
   }
-//  goForward(BASE_FORWARD_MICROS * 1.5);  // 4 seconds chosen arbitrarily. Test and tune.
+  
   stopCar();
   delay(100);  // might need small delay for movement change
-  toSearching(target);
-  //      while (1);  // For testing evasion function
+  toSearching(target);  // Start a new search to find the target again. 
 }
