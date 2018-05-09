@@ -1,12 +1,32 @@
-/* Full control algorithm.
-   Current issues:
-      Wheels generate significant noise, especially in the 14kHz range.
-        May need to alter the searching algorithm to stop when taking readings
-        rather than move continuously.
+/* =====   Real-time Embedded Systems -- Final Project, Group 12   =====
+ *  Anthony Fisher
+ *  Rui Zhang
+ *  Nikhil Shinde
+ *  Keonghwan Oh
+ *  
+ *  =====   Brief Algorithm Description   =====
+ *  The car turns in a full circle, stopping to sample
+ *  data after short turns. After the full circle, the car continues to turn
+ *  until it finds another value comparable to the recorded maximum.
+ *  
+ *  While moving forwards, the car stops periodically to sample audio data.
+ *  If the value has fallen too low from the recorded maximum, the car re-orients
+ *  to the proper direction. To do this, it performs a search with left turns.
+ *  
+ *  At any point in searching or moving forwards, new frequencies are also 
+ *  detected. If a new (higher) frequency is detected above a given threshold, 
+ *  it is set as the target and the process repeats.
+ *  
+ *  If the car ever gets completely lost and can't hear it's target frequency at all
+ *  during a full-circle search, it will reset to the first target in the sequence
+ *  and search for anything it can hear.
 */
 
 #include <arduinoFFT.h>
 
+/* Frequencies to search for. Three different versions for 
+ *  the three different specification changes we went through.
+ */
 //#define LOW_FQS
 #define MID_FQS
 //#define HIGH_FQS
@@ -48,6 +68,7 @@
 #define RIGHT 0
 #define LEFT  1
 
+// Teensy pins used
 #define PWM_LEFT_PIN  3
 #define PWM_RIGHT_PIN 5
 #define LED_PIN       13
@@ -57,6 +78,7 @@
 #define TRIG_PIN 8
 #define ECHO_PIN 9
 
+// Settings for wheel speeds with and without fixed front wheel.
 //#define FAST_SPEEDS
 //#define FIXED_WHEEL
 
@@ -89,18 +111,19 @@
 //#endif
 
 /*
-  These values can be changed in order to evaluate the functions
+  FFT settings and variables.
 */
 #define CHANNEL A2
 #define LISTEN_TIME_MILLIS 1250
 const uint16_t samples = 256; //This value MUST ALWAYS be a power of 2
 const double samplingFrequency = 20000; //Hz
-unsigned int sampling_period_us;
 unsigned long microseconds;
+unsigned int sampling_period_us;
 
 /*
-  These are the input and output vectors
-  Input vectors receive computed results from FFT
+  These are the FFT input and output vectors.
+  Input vectors receive computed results from FFT.
+  Also the running average 
 */
 double vReal[samples];
 double vImag[samples];
@@ -109,9 +132,9 @@ double avgHistory[10][AVG_NUMBER] = {0};
 double avgSum[10] = {0};
 int avgPos[10] = {0};
 double magnitudes[10] = {0};
-double tarAvgSum = 0;
-double tarAvgHistory[AVG_NUMBER] = {0};
-int tarAvgPos = 0;
+//double tarAvgSum = 0;
+//double tarAvgHistory[AVG_NUMBER] = {0};
+//int tarAvgPos = 0;
 double tarMag = 0;
 double maxSample = 0;
 uint8_t searchDirection = RIGHT;
@@ -391,13 +414,13 @@ void toSearching(int tar) {
   target = tar;
   tarFFTindex = freqToIndex(tar);
 
-  // Reset running average for new target
-  tarAvgSum = 0;
-  tarAvgPos = 0;
+  // DEPRECATED: Reset running average for new target
+//  tarAvgSum = 0;
+//  tarAvgPos = 0;
   tarMag = 0;
-  for (int i = 0; i < AVG_NUMBER; ++i) {
-    tarAvgHistory[i] = 0;
-  }
+//  for (int i = 0; i < AVG_NUMBER; ++i) {
+//    tarAvgHistory[i] = 0;
+//  }
 
   // Sample for 1 second to populate moving average with current readings.
   double startTime = millis();
@@ -435,36 +458,6 @@ void toSearching(void) {
   searchTime = 0;
   turnTime = 0;
 }
-
-/* Initiates a reading from the distance sensor and returns the
-    calculated distance.
-*/
-unsigned int ultraSonic(void) {
-  //  digitalWrite(TRIG_PIN, LOW);
-  //  delayMicroseconds(2);
-
-  unsigned long duration = 0;
-  unsigned int distance = 400;
-
-  // Sets the trigPin on HIGH state for 10 micro seconds
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-  // Reads the echoPin, returns the sound wave travel time in microseconds
-  duration = pulseIn(ECHO_PIN, HIGH, 40000);
-
-  // Calculating the distance
-  distance = (duration * 0.034) / 2;
-
-  // Prints the distance on the Serial Monitor
-  Serial.print("Time: ");
-  Serial.print(millis());
-  Serial.print(" Distance: ");
-  Serial.println(distance);
-
-  return distance;
-}
-
 
 /* Checks to see if any frequency further in the sequence is above
  *  the minimum threshold. If so, sets the target to that frequency

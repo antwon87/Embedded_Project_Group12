@@ -104,3 +104,32 @@ void evasiveManeuvers(void) {
   delay(100);  // might need small delay for movement change
   toSearching(target);  // Start a new search to find the target again. 
 }
+
+/* Initiates a reading from the distance sensor and returns the
+    calculated distance.
+*/
+unsigned int ultraSonic(void) {
+  //  digitalWrite(TRIG_PIN, LOW);
+  //  delayMicroseconds(2);
+
+  unsigned long duration = 0;
+  unsigned int distance = 400;
+
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+  duration = pulseIn(ECHO_PIN, HIGH, 40000);
+
+  // Calculating the distance
+  distance = (duration * 0.034) / 2;
+
+  // Prints the distance on the Serial Monitor
+  Serial.print("Time: ");
+  Serial.print(millis());
+  Serial.print(" Distance: ");
+  Serial.println(distance);
+
+  return distance;
+}
